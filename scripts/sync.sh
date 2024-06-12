@@ -74,7 +74,7 @@ SPLIT_MAX=1992294400   # 1900 MiB
 # ensure_release TAG TITLE INTRO  spec...   spec = "url|kind(留空则推断)"
 # 幂等:把 CDN 上存在、但 Release 里还没有的资产补进去(合并 CN+Global),已完整则跳过。
 ensure_release() {
-  local TAG="$1" TITLE="$2"; shift 3
+  local TAG="$1" TITLE="$2" INTRO="$3"; shift 3
   local specs=("$@") s url name
   # 1. 过滤出 CDN 上真实存在的资产
   local W_URL=() W_NAME=()
@@ -133,6 +133,7 @@ ensure_release() {
   # 6. 用最终资产列表重建说明
   {
     echo "## $TITLE"; echo
+    [ -n "$INTRO" ] && { echo "$INTRO"; echo; }
     echo "### 下载文件"; echo
     echo "| 类型 | 文件 | 大小 |"; echo "|------|------|------|"
     gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[] | "\(.name)\t\(.size)"' \
@@ -152,6 +153,9 @@ ensure_release() {
         echo "- 合并后整包 SHA256(核对):\`$os\`"; echo
       done
     fi
+    echo "---"
+    echo "> 🤖 自动镜像于 $(date -u '+%Y-%m-%d %H:%M UTC') · 裸 CDN 直链(网易官方 CDN)。"
+    echo "> ⚠️ 仅镜像网易官方**未修改**安装包,不含任何破解 / 授权绕过。同一版本的中国版 + 国际版合并在此。"
   } > "$DIR/notes.md"
   gh release edit "$TAG" --repo "$REPO" --notes-file "$DIR/notes.md" >/dev/null
   echo "  ✅ $TAG 就绪(新增 ${#NEW[@]} 个资产)"
@@ -242,8 +246,9 @@ do_win_full() {
 }
 
 # Windows 国际版完整离线安装包(三引擎:mumu15=安卓15/nemux=安卓12/nxmain=NX主)。
-# URL 全自动发现:scripts/nx_discover.py 调用官方下载接口 /api/v2/download/nx,
-#   拿到 data.components[].link(每引擎完整离线 setup exe)。接口不可用(网络等)时回退内置直链,
+# ★URL 全自动发现:scripts/nx_discover.py 复刻官方在线安装器对官方 nx 接口 /api/v2/download/nx
+#   的请求(逆向自 6.0.x 安装器 —— 表单编码 + HMAC-SHA256 签名 + 合成机器指纹,服务器不校验真实硬件),
+#   runner 直接拿到 data.components[].link(每引擎完整离线 setup exe)。nx 失败(网络/风控)时回退内置直链,
 #   保证 Release 不丢。命名 = MuMu-setup-<引擎>-V<版本>-overseas-<时间戳>.exe。
 WGO_FALLBACK_VER="6.8.0"
 WGO_FALLBACK=(
@@ -269,13 +274,14 @@ do_win_global_offline() {
   echo "═══ win-global-offline-$TAGVER(nx 发现 ${#URLS[@]} 引擎)═══"
   local specs=() u; for u in "${URLS[@]}"; do specs+=("$u|"); done
   ensure_release "win-global-offline-$TAGVER" "Windows 国际版完整安装包 · MuMu Player 12 (安卓15/12) $TAGVER" \
-    "🪟 Windows 国际版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。URL 由官方下载接口自动发现(scripts/nx_discover.py)。" \
+    "🪟 Windows 国际版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。URL 由官方 nx 接口自动发现(scripts/nx_discover.py)。" \
     "${specs[@]}"
 }
 
-# Windows 国内版完整离线安装包(三引擎,官方下载接口)。同 Global,地区参数不同(usage=0/language=zh-Hans/无 overseas)。
-# ★实测 GitHub runner 可正常发现+下载;国内版往往比国际版新(实测 CN 6.8.2 vs Global 6.8.0)。
-#   接口不可用(凭据缺失/网络异常)时跳过(CN 合体版仍由 win-full 社区索引覆盖,不受影响)。
+# Windows 国内版完整离线安装包(三引擎,官方 nx 接口)。同 Global 但 usage=0/language=zh-Hans/无 overseas。
+# ★实测 GitHub Azure runner(US)可正常发现+下载,无地理围栏(国内/国际唯一区别是 usage 等参数)。
+#   国内版 nx 往往比国际版新(实测 CN 6.8.2 vs Global 6.8.0)。nx 失败仅在密钥缺失/网络异常时,此时跳过
+#   (CN 合体版仍由 win-full 社区索引覆盖,不受影响)。
 do_win_cn_offline() {
   local OUT VER="" URLS=() line
   OUT=$(python3 "$(dirname "$0")/nx_discover.py" cn 2>/dev/null) || OUT=""
@@ -293,7 +299,7 @@ do_win_cn_offline() {
   echo "═══ win-cn-offline-$TAGVER(nx 发现 ${#URLS[@]} 引擎)═══"
   local specs=() u; for u in "${URLS[@]}"; do specs+=("$u|"); done
   ensure_release "win-cn-offline-$TAGVER" "Windows 国内版完整安装包 · MuMu模拟器12 (安卓15/12) $TAGVER" \
-    "🪟 Windows 国内版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。URL 由官方下载接口自动发现(scripts/nx_discover.py)。合体版见 win-*。" \
+    "🪟 Windows 国内版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。URL 由官方 nx 接口自动发现(scripts/nx_discover.py)。合体版见 win-*。" \
     "${specs[@]}"
 }
 
