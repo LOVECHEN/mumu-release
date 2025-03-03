@@ -2,7 +2,7 @@
 
 MuMu 模拟器 / MuMuPlayer Pro 官方安装包自动镜像 · Automated mirror of official MuMu installers (macOS / Windows · 中国版 + 国际版).
 
-自动从**网易官方源**拉取**未经修改的官方原版**安装包,按版本归档到 GitHub Releases,每天检查一次,有新版自动发布。Releases 列表以**最新原始文件的官方 CDN `Last-Modified`**为第一排序键,源文件时间越新越靠前,手动补档时间不参与排序;只有时间完全相同时,才以**语义版本号倒序**作为第二排序键(例如 `1.8.17` 在 `1.8.5` 前,`1.6.15` 在 `1.6.13` 前)。**同一版本的中国版 + 国际版合并在同一个 Release**(文件名自带 `default` / `global` 区分)。按 tag 前缀分三类:
+自动从**网易官方源**拉取**未经修改的官方原版**安装包,按版本归档到 GitHub Releases,每天检查一次,有新版自动发布。**同一版本的中国版 + 国际版合并在同一个 Release**(文件名自带 `default` / `global` 区分)。按 tag 前缀分三类:
 
 | tag 前缀 | 内容 | 平台 |
 |---|---|---|
@@ -14,7 +14,7 @@ MuMu 模拟器 / MuMuPlayer Pro 官方安装包自动镜像 · Automated mirror 
 
 ## 下载
 
-到 **[Releases](../../releases)** 按前缀找对应平台,或看 **[Latest](../../releases/latest)**(指向源文件时间最新的 Release)。每个 Release 附 `checksums.sha256` 校验和。
+到 **[Releases](../../releases)** 按前缀找对应平台,或看 **[Latest](../../releases/latest)**(指向最新 macOS 版)。每个 Release 附 `checksums.sha256` 校验和。
 
 - **macOS**:`MuMuPlayer_<ver>_default.dmg`(中国版)/ `_global.dmg`(国际版)· `MuMuUpdater_<ver>_default.tar.gz`(中国版完整包)/ `MuMuMacUpdater_<ver>-global.tar.gz`(国际版完整包)
 - **Windows 完整包(中国版·合体版)**:`MuMu-setup-V<ver>-<build>.exe`(免联网直装)
