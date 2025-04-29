@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-# 自动发现 MuMu 完整离线安装包直链 —— 调用官方下载接口
-# /api/v2/download/nx 获取每引擎离线 setup exe 直链。用法: nx_discover.py [global|cn]
+# 自动发现 MuMu 完整离线安装包直链 —— 复刻官方在线安装器 nemu-downloader 的
+# .../api/v2/download/nx 请求(逆向自 6.0.x 安装器)。用法: nx_discover.py [global|cn]
 #
-# 说明:
-#   · 请求体 = application/x-www-form-urlencoded,字段按名排序。
-#   · 请求头按接口要求携带 X-Param-* 并计算 X-Param-SIGN 校验头。
-#   · machine 为一段 JSON 字符串(键排序)。
-#   · usage 区分地区配置:国际版=1、国内版=0。
-#   · 返回 data.components[].link 即每引擎离线 setup exe 直链(mumu15=安卓15/nemux=安卓12/nxmain=NX主)。
-# 输出到 stdout:第一行 VERSION=<data.version>,后续每行一条 https 直链(归一到官方 CDN,MUMU_CDN)。
-# 失败(凭据缺失/网络)→ 退出码 1,无输出;上层 sync.sh 据此回退内置直链或社区索引。
+# 关键点(全部逆向实证):
+#   · 请求体 = application/x-www-form-urlencoded(不是 JSON!),字段按名排序。
+#   · 签名 X-Param-SIGN = HMAC-SHA256(PROD密钥, "POST"+path+排序小写X-Param头(含空值,k=v用&连)+body),小写 hex。
+#   · machine = 一段普通 JSON 字符串(键排序、": "/", " 分隔),服务器**不校验真实硬件**,合成假指纹即可过。
+#   · detectinfo 留空;product 字段留空;has_installed="0"。
+#   · ★usage 是配置区分键:国际版=1、国内版=0;发错会 errcode 101「配置不存在」。
+#   · 返回 data.components[].link 即每引擎完整离线 setup exe 直链(mumu15=安卓15/nemux=安卓12/nxmain=NX主)。
+# 输出到 stdout:第一行 VERSION=<data.version>,后续每行一条 https 直链(已归一到官方 CDN,MUMU_CDN)。
+# 失败(密钥缺失/网络/风控)→ 退出码 1,无输出;上层 sync.sh 据此回退内置直链或社区索引。
 #
-# 两个地区从任意 IP(含 GitHub runner)均可访问;地区差异由 usage 等参数决定。
+# 地理:两个地区从任意 IP(含 GitHub Azure US)均可达,无地理围栏——实测 US runner 正常拿到国内版。
+#       国内版与国际版的唯一区别就是 usage(国内=0/国际=1)等参数,不是出口 IP。
 import os, sys, json, uuid, time, hmac, hashlib, ssl, urllib.request, urllib.error, urllib.parse
 
-# 接口凭据 + 官方来源地址全部从环境变量注入(仓库 Secret),不硬编码进公开仓库。
+# 签名密钥 + 官方来源地址全部从环境变量注入(仓库 Secret),不硬编码进公开仓库。
 SECRET = os.environ.get("MUMU_NX_SECRET", "").encode()
 CDN    = os.environ.get("MUMU_CDN", "").rstrip("/")   # 直链归一到的 CDN 前缀
 PATH   = "/api/v2/download/nx"
@@ -28,7 +30,7 @@ REGIONS = {
                    usage="0", lang="zh-Hans", cnt="CN", pkgn="com.netease.mumu"),
 }
 
-# 通用 Windows 机器信息占位字段
+# 合成的通用 Windows 硬件指纹(纯占位,服务器不校验真伪)
 MACHINE = {
     "base_board": "Manufacturer:ASUSTeK COMPUTER INC.Product:PRIME B550M-A",
     "cpu": "AMD Ryzen 5 5600G with Radeon Graphics",
@@ -99,7 +101,7 @@ def main():
         print(f"nx request failed ({region}): {type(e).__name__}", file=sys.stderr)
         return 1
     if j.get("errcode") != 100:
-        # 业务错误码非 100 视为失败(参数与服务器配置不符等)
+        # errcode 101「配置不存在」= channel/usage/version 等参数与服务器配置不符(非地理)
         print(f"nx business error ({region}): {j.get('errcode')} {j.get('errmsg')}", file=sys.stderr)
         return 1
     data = j.get("data") or {}
