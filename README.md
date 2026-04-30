@@ -22,7 +22,7 @@
 
 - **macOS**：`MuMuPlayer_<ver>_default.dmg`（中国版）、`MuMuPlayer_<ver>_global.dmg`（国际版）、`MuMuPlayer_<ver>_{default,global}.tar.gz`（新版完整包）、`MuMuUpdater_<ver>_default.tar.gz` / `MuMuMacUpdater_<ver>-global.tar.gz`（旧版完整包）。
 - **Windows**：`MuMu_<ver>_gw-win_*.exe` / `MuMu_<ver>_gw-overseas12_*.exe`（在线安装器）、`MuMu-setup-V<ver>-<build>.exe`（中国合体版）、`MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-*.exe` / `MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-overseas-*.exe`（国内 / 国际分引擎完整包）。
-- **Windows ARM**：`MuMuARM_<ver>_gw-arm-beta.exe`（中国版新版）、`MuMuARM_<ver>-global_gw-arm-download.exe`（国际版）或 `MuMuPlayerARM_<ver>_gw-update-armbeta.exe`（旧版）。
+- **Windows ARM**：`MuMuARM_<ver>_gw-arm-beta.exe`（新版）或 `MuMuPlayerARM_<ver>_gw-update-armbeta.exe`（旧版）。
 
 ### Windows 安装
 
@@ -61,7 +61,7 @@ See **[Windows version history](docs/WINDOWS_HISTORY.md)** for official update r
 
 - **macOS**: `MuMuPlayer_<ver>_default.dmg` (Chinese), `MuMuPlayer_<ver>_global.dmg` (global), `MuMuPlayer_<ver>_{default,global}.tar.gz` (current complete packages), and `MuMuUpdater_<ver>_default.tar.gz` / `MuMuMacUpdater_<ver>-global.tar.gz` (legacy complete package names).
 - **Windows**: `MuMu_<ver>_gw-win_*.exe` / `MuMu_<ver>_gw-overseas12_*.exe` (online installers), `MuMu-setup-V<ver>-<build>.exe` (Chinese all-in-one package), and `MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-*.exe` / `MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-overseas-*.exe` (Chinese/global engine packages).
-- **Windows ARM**: `MuMuARM_<ver>_gw-arm-beta.exe` (current Chinese build), `MuMuARM_<ver>-global_gw-arm-download.exe` (global build), or `MuMuPlayerARM_<ver>_gw-update-armbeta.exe` (legacy naming).
+- **Windows ARM**: `MuMuARM_<ver>_gw-arm-beta.exe` (current naming) or `MuMuPlayerARM_<ver>_gw-update-armbeta.exe` (legacy naming).
 
 ### Windows installation
 

@@ -15,7 +15,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -304,14 +303,14 @@ def build_release_notes(
     history: ReleaseHistory | None = None,
 ) -> str:
     lines = []
-    if history and (
-        history.summary or history.source_url or history.status == "cdn-candidate"
-    ):
+    if history:
         lines.extend(("### 版本信息", "", f"- 发布日期：{history.published}"))
         if history.summary:
             lines.append(f"- 更新内容：{history.summary}")
         if history.status == "cdn-candidate":
             lines.append("- 状态：网易 CDN 已存在，官网当前下载入口尚未切换到此版本。")
+        elif history.status == "cdn-only":
+            lines.append("- 状态：网易 CDN 文件已验证，未找到对应的官方更新公告。")
         if history.source_url:
             lines.append(f"- 官方记录：[{history.source_url}]({history.source_url})")
         lines.append("")
@@ -781,17 +780,7 @@ class Synchronizer:
         self.mac_global = os.environ.get("MUMU_DL_MAC_GL", "")
         self.win_cn = os.environ.get("MUMU_DL_WIN_CN", "")
         self.win_global = os.environ.get("MUMU_DL_WIN_GL", "")
-        self.win_arm_endpoints = tuple(
-            dict.fromkeys(
-                endpoint
-                for endpoint in (
-                    os.environ.get("MUMU_DL_WIN_ARM_CN", ""),
-                    os.environ.get("MUMU_DL_WIN_ARM_GL", ""),
-                    os.environ.get("MUMU_DL_WIN_ARM", ""),
-                )
-                if endpoint
-            )
-        )
+        self.win_arm = os.environ.get("MUMU_DL_WIN_ARM", "")
         self.win_full_index = os.environ.get("MUMU_WINFULL_INDEX", "")
         mask_source_hosts(
             (
@@ -800,7 +789,7 @@ class Synchronizer:
                 self.mac_global,
                 self.win_cn,
                 self.win_global,
-                *self.win_arm_endpoints,
+                self.win_arm,
                 os.environ.get("MUMU_NX_HOST_GL", ""),
                 os.environ.get("MUMU_NX_HOST_CN", ""),
                 self.win_full_index,
@@ -946,52 +935,33 @@ class Synchronizer:
         ]
 
     def win_arm_current(self) -> None:
-        if not self.win_arm_endpoints:
-            log("⏭ 未配置 Windows ARM 下载入口,跳过")
+        if not self.win_arm:
+            log("⏭ 未配置 MUMU_DL_WIN_ARM,跳过 Windows ARM")
             return
-        names: list[str] = []
-        for endpoint in self.win_arm_endpoints:
-            try:
-                html = self.http.get_text(endpoint)
-            except (ValueError, OSError, urllib.error.URLError, urllib.error.HTTPError):
-                log("  ⚠️ 一个 Windows ARM 官网入口拉取失败")
-                continue
-            names.extend(
-                re.findall(
-                    r"(?:MuMu|MuMuPlayer)ARM_\d+\.\d+\.\d+[-_][A-Za-z0-9_-]+\.exe",
-                    html,
-                )
-            )
+        try:
+            html = self.http.get_text(self.win_arm)
+        except (OSError, urllib.error.URLError, urllib.error.HTTPError):
+            log("❌ Windows ARM 下载入口拉取失败,跳过")
+            return
+        names = re.findall(
+            r"(?:MuMu|MuMuPlayer)ARM_\d+\.\d+\.\d+_[A-Za-z0-9_-]+\.exe", html
+        )
         if not names:
-            log("❌ Windows ARM 官网入口均未解析到安装包,跳过")
+            log("❌ Windows ARM 下载入口未解析到安装包,跳过")
             return
-        grouped: dict[str, list[str]] = {}
-        for name in dict.fromkeys(names):
-            # 国内首页的 gwarmbeta 与历史 gw-arm-beta 是同一对象，仅保留规范名。
-            canonical = name.replace("_gwarmbeta.exe", "_gw-arm-beta.exe")
-            canonical_url = f"{self.cdn}/{canonical}"
-            url = canonical_url if canonical != name and self.http.exists(canonical_url) else f"{self.cdn}/{name}"
-            version = extract_version(name)
-            if version:
-                grouped.setdefault(version, []).append(url)
+        name = names[0]
+        version = extract_version(name)
+        url = f"{self.cdn}/{name}"
+        history = WINDOWS_ARM_HISTORY.get(version) or self._cdn_history(url, "official")
+        log(f"═══ win-arm-{version} (官网当前版) ═══")
+        self.mirror.ensure(
+            f"win-arm-{version}",
+            f"Windows ARM · MuMu 模拟器 {version}",
+            [url],
+            history,
+        )
 
-        if not grouped:
-            log("❌ Windows ARM 官网入口文件名缺少可识别版本,跳过")
-            return
-
-        for version in sorted(grouped, key=version_key):
-            urls = list(dict.fromkeys(grouped[version]))
-            history = WINDOWS_ARM_HISTORY.get(version) or self._cdn_history(urls[0], "official")
-            log(f"═══ win-arm-{version} (官网当前版，共 {len(urls)} 个地区资产) ═══")
-            self.mirror.ensure(
-                f"win-arm-{version}",
-                f"Windows ARM · MuMu 模拟器 {version}",
-                urls,
-                history,
-            )
-
-        latest_version = max(grouped, key=version_key)
-        parts = latest_version.split(".")
+        parts = version.split(".")
         if len(parts) != 3:
             return
         major, minor, patch = (int(part) for part in parts)
@@ -1432,10 +1402,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"❌ {error}", file=sys.stderr)
         return 1
     except Exception as error:
-        # 不输出异常正文和源码行，避免第三方响应或 URL 泄漏；仅保留本仓库定位信息。
-        frame = traceback.extract_tb(error.__traceback__)[-1]
-        location = f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
-        print(f"❌ 操作失败({type(error).__name__}, {location})", file=sys.stderr)
+        # 底层网络库异常常含完整 URL；未知失败只暴露异常类型，不输出正文或 traceback。
+        print(f"❌ 操作失败({type(error).__name__})", file=sys.stderr)
         return 1
 
 

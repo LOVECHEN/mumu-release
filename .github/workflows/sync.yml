@@ -24,10 +24,6 @@ on:
         description: '一次性:补全 Windows x64 + ARM 历史版本 (yes/no,仅手动触发)'
         required: false
         default: 'no'
-      sort_releases:
-        description: '仅按源文件时间重排 Releases (yes/no,仅手动触发)'
-        required: false
-        default: 'no'
       merge_from:
         description: '可选:把这个旧 Release 的附件并入 merge_into'
         required: false
@@ -99,8 +95,6 @@ jobs:
           MUMU_CDN:           ${{ secrets.MUMU_CDN }}
           MUMU_DL_WIN_CN:     ${{ secrets.MUMU_DL_WIN_CN }}
           MUMU_DL_WIN_GL:     ${{ secrets.MUMU_DL_WIN_GL }}
-          MUMU_DL_WIN_ARM_CN: ${{ secrets.MUMU_DL_WIN_ARM_CN }}
-          MUMU_DL_WIN_ARM_GL: ${{ secrets.MUMU_DL_WIN_ARM_GL }}
           MUMU_DL_WIN_ARM:    ${{ secrets.MUMU_DL_WIN_ARM }}
           MUMU_NX_HOST_GL:    ${{ secrets.MUMU_NX_HOST_GL }}
           MUMU_NX_HOST_CN:    ${{ secrets.MUMU_NX_HOST_CN }}
@@ -137,12 +131,7 @@ jobs:
   sort-after-win-backfill:
     runs-on: ubuntu-latest
     needs: [backfill-win-x64, backfill-win-arm]
-    if: >-
-      always() && github.event_name == 'workflow_dispatch' &&
-      (inputs.sort_releases == 'yes' ||
-      (inputs.backfill_windows == 'yes' &&
-      needs.backfill-win-x64.result == 'success' &&
-      needs.backfill-win-arm.result == 'success'))
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.backfill_windows == 'yes' && needs.backfill-win-x64.result == 'success' && needs.backfill-win-arm.result == 'success'
     permissions:
       contents: write
     steps:
