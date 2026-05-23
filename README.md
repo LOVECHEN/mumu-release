@@ -1,81 +1,58 @@
-# MuMuPlayer / MuMu 模拟器官方下载与历史版本
+<div align="center">
 
-[中文](#中文) | [English](#english)
+# 📦 MuMu 官方安装包镜像
 
-## 中文
+**MuMu 模拟器 / MuMuPlayer Pro 官方安装包 —— 每日自动跟随官方,直发 GitHub Release**
 
-网易 **MuMuPlayer（MuMu 模拟器 / MuMu Player / MuMu Emulator）** 官方下载镜像与历史版本归档。提供 MuMuPlayer Pro for Mac / macOS Apple Silicon 原版 `dmg`，以及 Windows x86-64、Windows ARM 官方安装器和离线安装资源。中国版与国际版按版本合并归档。
+macOS(Apple Silicon · dmg + 增量 tar.gz)· Windows(64-bit · exe)· 中国版 + 国际版
 
-发现新版本或现有 Release 缺少官方文件时，任务会自动补充并发布。相同版本的中国版与国际版文件合并到同一个 Release：
+[![最新](https://img.shields.io/github/v/release/LOVECHEN/mumu-release?label=最新发布&color=2f7d32)](https://github.com/LOVECHEN/mumu-release/releases/latest)
+[![最近更新](https://img.shields.io/github/release-date/LOVECHEN/mumu-release?label=最近更新&color=4c8bf5)](https://github.com/LOVECHEN/mumu-release/releases)
+[![自动同步](https://github.com/LOVECHEN/mumu-release/actions/workflows/sync.yml/badge.svg)](https://github.com/LOVECHEN/mumu-release/actions/workflows/sync.yml)
 
-| Tag 前缀 | 内容 | 平台 |
-|---|---|---|
-| `mac-<版本>` | MuMuPlayer Pro 完整 `dmg` + 完整 `tar.gz`，均为 Apple Silicon | macOS |
-| `win-<版本>` | 在线安装器 + 中国合体版 + 国内三引擎 + 国际三引擎 `exe` | Windows |
-| `win-arm-<版本>` | Windows ARM 官方 Beta 安装包 `exe` | Windows ARM64 |
+[**⬇️ 打开最新发布**](https://github.com/LOVECHEN/mumu-release/releases/latest) · [📦 全部版本](https://github.com/LOVECHEN/mumu-release/releases)
 
-### 下载
+</div>
 
-到 **[GitHub Releases](https://github.com/LOVECHEN/mumu-release/releases)** 按 Tag 前缀选择平台，或打开 **[Latest Release](https://github.com/LOVECHEN/mumu-release/releases/latest)**。每个 Release 都附带 `checksums.sha256` 校验文件。
+---
 
-历史版本、官方更新记录和 CDN 推测依据见 **[Windows 版本历史](docs/WINDOWS_HISTORY.md)**。
+## ⬇️ 下载矩阵(三类 · 同版本中国版+国际版合并在一个 Release)
 
-- **macOS**：`MuMuPlayer_<ver>_default.dmg`（中国版）、`MuMuPlayer_<ver>_global.dmg`（国际版）、`MuMuPlayer_<ver>_{default,global}.tar.gz`（新版完整包）、`MuMuUpdater_<ver>_default.tar.gz` / `MuMuMacUpdater_<ver>-global.tar.gz`（旧版完整包）。
-- **Windows**：`MuMu_<ver>_gw-win_*.exe` / `MuMu_<ver>_gw-overseas12_*.exe`（在线安装器）、`MuMu-setup-V<ver>-<build>.exe`（中国合体版）、`MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-*.exe` / `MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-overseas-*.exe`（国内 / 国际分引擎完整包）。
-- **Windows ARM**：`MuMuARM_<ver>_gw-arm-beta.exe`（新版）或 `MuMuPlayerARM_<ver>_gw-update-armbeta.exe`（旧版）。
+进入对应 Release 页,下载官方**原始安装包**(文件名自带版本号,附 `checksums.sha256` 可校验):
 
-### Windows 安装
+| 类型 | tag | 内容 | 页面 |
+|------|-----|------|------|
+| 🍎 **macOS** | `mac-<版本>` | MuMuPlayer Pro 全量 `dmg`(Apple Silicon)+ 增量 `tar.gz`,**中国版+国际版同版本并在一起** | [![mac](https://img.shields.io/github/v/release/LOVECHEN/mumu-release?filter=mac-*&label=版本&color=2f7d32)](https://github.com/LOVECHEN/mumu-release/releases?q=mac) |
+| 🪟 **Windows 完整包** | `win-<产品版本>` | **完整离线安装包** `exe`(~830 MB,免联网双击直装)· 主 Windows 下载 | [![win](https://img.shields.io/github/v/release/LOVECHEN/mumu-release?filter=win-V*&label=产品版本&color=c0392b)](https://github.com/LOVECHEN/mumu-release/releases?q=win-V) |
+| 🪟 **Windows 在线安装器** | `win-installer-<下载器版本>` | 官方小巧在线下载器 `exe`(~5–6 MB,运行后再联网拉完整包) | [![installer](https://img.shields.io/github/v/release/LOVECHEN/mumu-release?filter=win-installer-*&label=下载器&color=4c8bf5)](https://github.com/LOVECHEN/mumu-release/releases?q=win-installer) |
 
-- 中国合体版 `MuMu-setup-V<ver>-<build>.exe` 可直接运行安装。
-- 在线安装器体积较小，会按所选版本和引擎下载完整资源。`mumu15`、`nemux`、`nxmain` 分别是安卓 15、安卓 12、NX 主引擎资源；全新安装通常由在线安装器自动选择和组合，不需要逐个手动运行。
+> - **同一版本的中国版 + 国际版资产放在同一个 Release 里**(文件名自带 `default`/`global` 区分,不冲突)。
+> - **macOS = MuMuPlayer Pro**(`1.9.x`);Windows 网络不好优先下 **完整包**(双击即装),在线安装器是小下载器。
+> - 资产**保留官方原名**,例:`MuMuPlayer_1.9.2_default.dmg` + `MuMuPlayer_1.9.2_global.dmg` 同处一个 `mac-1.9.2`。
+> - 仓库 **Latest** = macOS 最新版本。历史版本累积不删。
 
-如果在线安装器从官方 CDN 下载较慢，可以先从本仓库下载它需要的完整资源，让安装器直接复用本地文件：
+> **⚠️ Windows 三个版本号别混**(同一个 MuMu模拟器12,不同组件各自编号):
+> - **产品 / 模拟器版本 `V6.x`**(如 V6.2.5)—— 官网/软件显示的版本,**完整包** `win-V6.x` 用它。
+> - **在线安装器"下载器"版本 `6.0.x`** —— 小下载器自己的号,`win-installer-6.0.x` 用它。
+> - **完整包内部构建号 `V5.30.x`** —— 只在离线包**文件名**里,装出来即产品 `V6.x`。
 
-1. 下载对应渠道的在线安装器和完整资源。国际版文件名包含 `gw-overseas12` / `overseas`，中国版不含 `overseas`，两种渠道不要混用。
-2. 保持完整资源的原始文件名不变。按 `Win + R`，输入 `%TEMP%` 并回车，将资源复制到打开的目录。
-3. 运行在线安装器。文件名、版本和校验值完全匹配时，安装器会跳过对应资源的重复下载；不匹配时会重新下载。
+---
 
-国际版全新安装默认使用 `mumu15` + `nxmain`；选择安卓 12 等其他方案时还可能需要 `nemux` 或其他资源。这个方法用于解决官方 CDN 下载慢的问题，安装器仍需联网获取版本信息，不等同于完全离线安装。
+## 🔄 工作原理
 
-### 说明
+[`.github/workflows/sync.yml`](.github/workflows/sync.yml) 每天 **06:00 UTC(北京 14:00)** 运行,核心逻辑在 [`scripts/sync.sh`](scripts/sync.sh),**按版本聚合、幂等**(CDN 上有、Release 里没有的资产会补进去,已完整则跳过):
 
-全部文件未经修改，逐字节镜像自网易官方 CDN，仅作下载加速和历史归档。版权归网易（NetEase）所有。官方站点：[mumu.163.com](https://mumu.163.com)（中国版）和 [mumuplayer.com](https://www.mumuplayer.com)（国际版）。
+- **`mac` 任务**:官方 api 解析中国版 + 国际版当前 mac 版本,每个版本聚合 4 类直链(dmg / tar.gz × CN / Global)中存在的,发布/补齐 `mac-<版本>`。
+- **`win` 任务**:从社区索引取最新**完整离线安装包**直链 + 产品版本,发 `win-<V6.x>`(~830 MB)。官方无干净端点,索引失败自动跳过(唯一第三方依赖)。
+- **`win-installer` 任务**:官方 api 解析中国版 + 国际版当前在线安装器版本,发 `win-installer-<下载器版本>`;两边同版本则合并同一 Release。
+- **`backfill-mac`(一次性,手动 `backfill=yes`)**:遍历候选版本号 `HEAD` 探测,把网易 CDN 上**还活着的历史 mac 包**补成 `mac-<版本>`(同版本 CN+Global 合并)。网易老版本保留不规律,能补到哪算哪。
 
-## English
+也可在 **Actions → Sync MuMu → Run workflow** 手动触发(`only` = mac/win/installer/all)。
 
-Official NetEase **MuMuPlayer (MuMu Emulator / MuMu Player)** downloads and historical version archive. It provides original MuMuPlayer Pro for Mac / macOS Apple Silicon `dmg` files, plus official Windows x86-64 and Windows ARM installers and offline resources. Chinese and global files with the same version are grouped into one Release.
+---
 
-When a new version appears, or an existing Release is missing an official file, the automation adds and publishes it. Chinese and global files with the same version are merged into the same Release:
+## ⚖️ 声明
 
-| Tag prefix | Contents | Platform |
-|---|---|---|
-| `mac-<version>` | Complete MuMuPlayer Pro `dmg` and `tar.gz` packages for Apple Silicon | macOS |
-| `win-<version>` | Online installers, Chinese all-in-one package, and Chinese/global three-engine `exe` packages | Windows |
-| `win-arm-<version>` | Official Windows ARM Beta installer `exe` | Windows ARM64 |
-
-### Downloads
-
-Open **[GitHub Releases](https://github.com/LOVECHEN/mumu-release/releases)** and select a platform by Tag prefix, or open the **[Latest Release](https://github.com/LOVECHEN/mumu-release/releases/latest)**. Every Release includes a `checksums.sha256` file.
-
-See **[Windows version history](docs/WINDOWS_HISTORY.md)** for official update records and CDN-backed version inference.
-
-- **macOS**: `MuMuPlayer_<ver>_default.dmg` (Chinese), `MuMuPlayer_<ver>_global.dmg` (global), `MuMuPlayer_<ver>_{default,global}.tar.gz` (current complete packages), and `MuMuUpdater_<ver>_default.tar.gz` / `MuMuMacUpdater_<ver>-global.tar.gz` (legacy complete package names).
-- **Windows**: `MuMu_<ver>_gw-win_*.exe` / `MuMu_<ver>_gw-overseas12_*.exe` (online installers), `MuMu-setup-V<ver>-<build>.exe` (Chinese all-in-one package), and `MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-*.exe` / `MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-overseas-*.exe` (Chinese/global engine packages).
-- **Windows ARM**: `MuMuARM_<ver>_gw-arm-beta.exe` (current naming) or `MuMuPlayerARM_<ver>_gw-update-armbeta.exe` (legacy naming).
-
-### Windows installation
-
-- Run the Chinese all-in-one `MuMu-setup-V<ver>-<build>.exe` package directly.
-- The smaller online installer downloads the complete resources for the selected version and engine. `mumu15`, `nemux`, and `nxmain` are the Android 15, Android 12, and NX main-engine resources. For a fresh installation, the online installer normally selects and combines the required resources automatically.
-
-If downloads from the official CDN are slow, download the required complete resources from this repository first and let the online installer reuse them locally:
-
-1. Download the online installer and complete resources for the same channel. Global filenames contain `gw-overseas12` / `overseas`; Chinese filenames do not. Do not mix the two channels.
-2. Keep the original resource filenames unchanged. Press `Win + R`, enter `%TEMP%`, and copy the resources into the opened directory.
-3. Run the online installer. It skips a resource download when the filename, version, and checksum match; otherwise, it downloads the resource again.
-
-A new global installation normally uses `mumu15` + `nxmain`. Android 12 or another configuration may also require `nemux` or additional resources. This method helps with slow official CDN downloads, but the installer still needs an internet connection to retrieve version metadata and is not a fully offline installation.
-
-### Notes
-
-All files are mirrored byte-for-byte from NetEase's official CDN without modification, for download acceleration and historical archiving. Copyright belongs to NetEase. Official sites: [mumu.163.com](https://mumu.163.com) (Chinese) and [mumuplayer.com](https://www.mumuplayer.com) (global).
+本仓库仅镜像网易 MuMu **官方公开分发**的安装包,不含任何破解 / 授权绕过 / 二进制修改。
+版权归网易(NetEase)所有,请遵守 MuMu 官方用户协议。官方站点:
+[mumu.163.com](https://mumu.163.com)(中国版)· [mumuplayer.com](https://www.mumuplayer.com)(国际版)。
