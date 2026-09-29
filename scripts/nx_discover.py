@@ -1,34 +1,34 @@
 #!/usr/bin/env python3
-# 自动发现 MuMu 完整离线安装包直链 —— 调用官方下载接口
-# /api/v2/download/nx 获取每引擎离线 setup exe 直链。用法: nx_discover.py [global|cn]
+# 自动发现 MuMu 完整离线安装包直链 —— 复刻官方在线安装器 nemu-downloader 的
+# .../api/v2/download/nx 请求(逆向自 6.0.x 安装器)。用法: nx_discover.py [global|cn]
 #
-# 说明:
-#   · 请求体 = application/x-www-form-urlencoded,字段按名排序。
-#   · 请求头按接口要求携带 X-Param-* 并计算 X-Param-SIGN 校验头。
-#   · machine 为一段 JSON 字符串(键排序)。
-#   · usage 区分地区配置:国际版=1、国内版=0。
-#   · 返回 data.components[].link 即每引擎离线 setup exe 直链(mumu15=安卓15/nemux=安卓12/nxmain=NX主)。
-# 输出到 stdout:第一行 VERSION=<data.version>,后续每行一条 https 直链(归一到官方 CDN,MUMU_CDN)。
-# 失败(凭据缺失/网络)→ 退出码 1,无输出;上层 sync.sh 据此回退内置直链或社区索引。
+# 关键点(全部逆向实证):
+#   · 请求体 = application/x-www-form-urlencoded(不是 JSON!),字段按名排序。
+#   · 签名 X-Param-SIGN = HMAC-SHA256(PROD密钥, "POST"+path+排序小写X-Param头(含空值,k=v用&连)+body),小写 hex。
+#   · machine = 一段普通 JSON 字符串(键排序、": "/", " 分隔),服务器**不校验真实硬件**,合成假指纹即可过。
+#   · detectinfo 留空;product 字段留空;has_installed="0"。
+#   · ★usage 是配置区分键:国际版=1、国内版=0;发错会 errcode 101「配置不存在」。
+#   · 返回 data.components[].link 即每引擎完整离线 setup exe 直链(mumu15=安卓15/nemux=安卓12/nxmain=NX主)。
+# 输出到 stdout:第一行 VERSION=<data.version>,后续每行一条 https 直链(已归一到 netease CDN)。
+# 失败(密钥缺失/网络/风控/地理围栏)→ 退出码 1,无输出;上层 sync.sh 据此回退内置直链或社区索引。
 #
-# 两个地区从任意 IP(含 GitHub runner)均可访问;地区差异由 usage 等参数决定。
+# 地理:国际版 api.mumuglobal.com 从任意 IP(含 GitHub Azure US)可达;
+#       国内版 api.mumu.nie.netease.com 需**中国大陆出口 IP**(US runner 会 errcode 101)。
 import os, sys, json, uuid, time, hmac, hashlib, ssl, urllib.request, urllib.error, urllib.parse
 
-# 接口凭据 + 官方来源地址全部从环境变量注入(仓库 Secret),不硬编码进公开仓库。
+# 请求签名密钥从环境变量注入(仓库 Secret: MUMU_NX_SECRET),不硬编码进公开仓库。
 SECRET = os.environ.get("MUMU_NX_SECRET", "").encode()
-CDN    = os.environ.get("MUMU_CDN", "").rstrip("/")   # 直链归一到的 CDN 前缀
 PATH   = "/api/v2/download/nx"
 CTX    = ssl.create_default_context()
 
-# host 来自 Secret(MUMU_NX_HOST_GL / MUMU_NX_HOST_CN);其余为协议参数(非地址)。
 REGIONS = {
-    "global": dict(host=os.environ.get("MUMU_NX_HOST_GL", ""), chn="gw-overseas12", vn="6.0.2",
+    "global": dict(host="api.mumuglobal.com",       chn="gw-overseas12", vn="6.0.2",
                    usage="1", lang="en",      cnt="US", pkgn="com.netease.mumu.nx"),
-    "cn":     dict(host=os.environ.get("MUMU_NX_HOST_CN", ""), chn="gw-win",        vn="6.0.3",
+    "cn":     dict(host="api.mumu.nie.netease.com",  chn="gw-win",        vn="6.0.3",
                    usage="0", lang="zh-Hans", cnt="CN", pkgn="com.netease.mumu"),
 }
 
-# 通用 Windows 机器信息占位字段
+# 合成的通用 Windows 硬件指纹(纯占位,服务器不校验真伪)
 MACHINE = {
     "base_board": "Manufacturer:ASUSTeK COMPUTER INC.Product:PRIME B550M-A",
     "cpu": "AMD Ryzen 5 5600G with Radeon Graphics",
@@ -90,16 +90,13 @@ def main():
     if not SECRET:
         print("MUMU_NX_SECRET 未设置,跳过 nx 自动发现(上层将回退)", file=sys.stderr)
         return 1
-    if not REGIONS[region]["host"]:
-        print(f"MUMU_NX_HOST_{region.upper()} 未设置,跳过", file=sys.stderr)
-        return 1
     try:
         j = call_nx(REGIONS[region])
-    except Exception as e:  # 网络 / TLS / 解析 —— 只打异常类型,不打含主机名的详情
-        print(f"nx request failed ({region}): {type(e).__name__}", file=sys.stderr)
+    except Exception as e:  # 网络 / TLS / 解析
+        print(f"nx request failed ({region}): {e}", file=sys.stderr)
         return 1
     if j.get("errcode") != 100:
-        # 业务错误码非 100 视为失败(参数与服务器配置不符等)
+        # errcode 101「配置不存在」多半是地理围栏(CN 需中国 IP)或参数不符
         print(f"nx business error ({region}): {j.get('errcode')} {j.get('errmsg')}", file=sys.stderr)
         return 1
     data = j.get("data") or {}
@@ -112,9 +109,9 @@ def main():
         link = c.get("link") or ""
         if not link:
             continue
-        # 归一到 CDN(取文件名拼 MUMU_CDN,同名镜像;ensure_release 用 https HEAD 校验)。
-        name = link.rsplit("/", 1)[-1].split("?", 1)[0]
-        link = f"{CDN}/{name}" if CDN and name else link.replace("http://", "https://")
+        # easebar/http → netease/https(同名镜像,ensure_release 用 https HEAD 校验)
+        link = link.replace("http://a11.gdl.easebar.com/", "https://a11.gdl.netease.com/")
+        link = link.replace("http://", "https://")
         print(link)
     return 0
 
