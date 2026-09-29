@@ -84,13 +84,23 @@ jobs:
             echo "|------|------|------|"
           } > "$NOTES"
 
+          BARE="${LOC%%\?*}"   # 无签名裸 CDN 直链(GCS 直存,稳定 200,不受签名 IP 绑定/过期约束)
+
           FAIL=0; TOTAL=0; ASSETS=()
-          # dl <url> <保存文件名> <类型说明> —— curl 一律 2>/dev/null,只回显文件名不回显直链
+          # dl <保存文件名> <类型说明> <候选直链...> —— 逐条尝试直至成功;curl 一律 2>/dev/null 不回显直链
           dl() {
-            local url="$1" file="$2" kind="$3" sz mb
+            local file="$1" kind="$2"; shift 2
+            local url sz mb ok=0
             TOTAL=$((TOTAL+1))
             echo "  📥 [$kind] $file 拉取中..."
-            if curl -fL --http1.1 --retry 5 --retry-delay 6 --connect-timeout 40 -o "$DIR/$file" "$url" 2>/dev/null; then
+            for url in "$@"; do
+              [ -z "$url" ] && continue
+              if curl -fL --http1.1 --retry 5 --retry-delay 6 --retry-all-errors --retry-connrefused --connect-timeout 40 -o "$DIR/$file" "$url" 2>/dev/null; then
+                ok=1; break
+              fi
+              echo "    ↻ 换直链重试..."
+            done
+            if [ "$ok" = 1 ]; then
               sz=$(stat -c%s "$DIR/$file"); mb=$((sz/1048576))
               printf '| %s | `%s` | %d MB |\n' "$kind" "$file" "$mb" >> "$NOTES"
               ASSETS+=("$DIR/$file")
@@ -100,19 +110,19 @@ jobs:
             fi
           }
 
-          # 主安装包:走 api 端点(每次重签的新鲜直链),存成官方原名
+          # 主安装包:裸 CDN 直链优先,退回 api 重签直链,存成官方原名
           case "$PLAT" in
             mac) KIND="🍎 全量安装 (Apple Silicon · dmg)";;
             win) KIND="🪟 全量安装 (64-bit · exe)";;
             *)   KIND="安装包";;
           esac
-          dl "$API" "$FILE" "$KIND"
+          dl "$FILE" "$KIND" "$BARE" "$API"
 
           # macOS 增量热更包 tar.gz(有则附,404 自动跳过)
           if [ -n "$UPDATER" ]; then
             UURL="${UPDATER//\{V\}/$VER}"; UFILE="${UURL##*/}"
             if curl -fsSI --http1.1 -m 30 "$UURL" >/dev/null 2>&1; then
-              dl "$UURL" "$UFILE" "🍎 增量热更 (updater · tar.gz)"
+              dl "$UFILE" "🍎 增量热更 (updater · tar.gz)" "$UURL"
             else
               echo "  ⏭ 无增量 tar.gz(未发布),跳过"
             fi

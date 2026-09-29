@@ -28,7 +28,7 @@ macOS(Apple Silicon · dmg + 增量 tar.gz)· Windows(64-bit · exe)· 中国版
 | 🪟 **Windows** | 国际版 | 全量 `exe`(64-bit) | [![win-global](https://img.shields.io/github/v/release/LOVECHEN/mumu-release?filter=win-global-*&label=版本&color=6f42c1)](https://github.com/LOVECHEN/mumu-release/releases?q=win-global) |
 
 > - **macOS = MuMuPlayer Pro**(版本号 `1.9.x`,Apple Silicon 原生 dmg;中国版另附增量热更 `tar.gz`)。
-> - **Windows = MuMu 模拟器 12**(版本号 `6.0.x`,64-bit exe)。macOS 与 Windows 是两条独立产品线,版本号互不相干。
+> - **Windows = MuMu 模拟器 12**(版本号 `6.0.x`)。官方下载按钮给的是**在线安装器**(exe ~5–6 MB,运行后再拉取完整包),本仓库镜像的即此官方在线安装器。macOS 与 Windows 是两条独立产品线,版本号互不相干。
 > - 资产**保留官方原名**,例:mac `MuMuPlayer_1.9.6_default.dmg`、win `MuMu_6.0.3_gw-win_zh-Hans_*.exe`。
 > - 每个版本一个独立 Release,历史累积**永不删除**。仓库 **Latest** = macOS 中国版最新。
 
