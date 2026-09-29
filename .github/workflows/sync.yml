@@ -1,0 +1,188 @@
+name: Sync MuMu
+
+# 每日把 MuMu 官方安装包(macOS dmg + 增量 tar.gz / Windows exe · 中国版 + 国际版)
+# 镜像到 GitHub Releases。源地址均为网易官方公开下载入口(mumu.163.com / mumuplayer.com),
+# 每个渠道的稳定 api 端点每次重新签发直链;版本号从 302 重定向后的官方文件名解析。
+# 每个版本一个独立 Release(tag = <平台>-<渠道>-<版本>),历史累积不删。
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 每天 06:00 UTC = 北京 14:00
+  workflow_dispatch:
+    inputs:
+      only:
+        description: '仅处理某渠道 (mac-cn/mac-global/win-cn/win-global/all)'
+        required: false
+        default: 'all'
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # key       plat  chan     product 标题                       api 端点(每次重签直链)                                              增量 updater 模板({V}=版本,404 自动跳过)
+          - { key: mac-cn,     plat: mac, chan: cn,     title: 'MuMuPlayer Pro',        cn_title: 'macOS 中国版',   api: 'https://mumu.nie.netease.com/api/dl/mac?channel=gw-mac',            updater: 'https://a11.gdl.netease.com/MuMuUpdater_{V}_default.tar.gz' }
+          - { key: mac-global, plat: mac, chan: global, title: 'MuMuPlayer Pro',        cn_title: 'macOS 国际版',   api: 'https://api.mumuplayer.com/api/dl/mac?channel=gw-mac-download',     updater: 'https://a11.gdl.netease.com/MuMuMacUpdater_{V}-global.tar.gz' }
+          - { key: win-cn,     plat: win, chan: cn,     title: 'MuMu 模拟器',           cn_title: 'Windows 中国版', api: 'https://mumu.nie.netease.com/api/dl/win?channel=gw-win',            updater: '' }
+          - { key: win-global, plat: win, chan: global, title: 'MuMu Player',           cn_title: 'Windows 国际版', api: 'https://api.mumuplayer.com/api/dl/win?channel=gw-win-download',     updater: '' }
+    steps:
+      - name: Filter channel
+        id: filter
+        run: |
+          WANT="${{ github.event.inputs.only || 'all' }}"
+          if [[ "$WANT" != "all" && "$WANT" != "${{ matrix.key }}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "⏭ 跳过 ${{ matrix.key }}(本次仅要 $WANT)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Discover & mirror
+        if: steps.filter.outputs.skip != 'true'
+        env:
+          KEY:      ${{ matrix.key }}
+          PLAT:     ${{ matrix.plat }}
+          CHAN:     ${{ matrix.chan }}
+          PRODUCT:  ${{ matrix.title }}
+          CN_TITLE: ${{ matrix.cn_title }}
+          API:      ${{ matrix.api }}
+          UPDATER:  ${{ matrix.updater }}
+        run: |
+          set -uo pipefail
+
+          # —— 1. 发现:跟随 302,从官方文件名解析版本 ——
+          LOC=$(curl -fsS --http1.1 -m 40 -o /dev/null -w '%{redirect_url}' "$API" 2>/dev/null || true)
+          if [ -z "$LOC" ]; then echo "❌ [$KEY] api 未返回重定向,跳过"; exit 0; fi
+          FILE="${LOC##*/}"; FILE="${FILE%%\?*}"                       # 官方原始文件名(去签名 query)
+          VER=$(printf '%s' "$FILE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          if [ -z "$VER" ]; then echo "❌ [$KEY] 无法从 '$FILE' 解析版本,跳过"; exit 0; fi
+
+          TAG="$KEY-$VER"
+          TITLE="$CN_TITLE · $PRODUCT $VER"
+          echo "═══ $TAG ($FILE) ═══"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "  ⏭ 已存在,跳过"; exit 0
+          fi
+          echo "  🆕 开始镜像"
+
+          DIR="rel-$TAG"; mkdir -p "$DIR"
+          NOTES="notes-$TAG.md"
+          {
+            echo "## $TITLE"; echo
+            echo "🔖 渠道:$CN_TITLE　|　🧩 版本:\`$VER\`"; echo
+            echo "### 下载文件"; echo
+            echo "| 类型 | 文件 | 大小 |"
+            echo "|------|------|------|"
+          } > "$NOTES"
+
+          FAIL=0; TOTAL=0; ASSETS=()
+          # dl <url> <保存文件名> <类型说明> —— curl 一律 2>/dev/null,只回显文件名不回显直链
+          dl() {
+            local url="$1" file="$2" kind="$3" sz mb
+            TOTAL=$((TOTAL+1))
+            echo "  📥 [$kind] $file 拉取中..."
+            if curl -fL --http1.1 --retry 5 --retry-delay 6 --connect-timeout 40 -o "$DIR/$file" "$url" 2>/dev/null; then
+              sz=$(stat -c%s "$DIR/$file"); mb=$((sz/1048576))
+              printf '| %s | `%s` | %d MB |\n' "$kind" "$file" "$mb" >> "$NOTES"
+              ASSETS+=("$DIR/$file")
+              echo "    ✅ $mb MB"
+            else
+              echo "    ❌ 下载失败"; rm -f "$DIR/$file"; FAIL=$((FAIL+1))
+            fi
+          }
+
+          # 主安装包:走 api 端点(每次重签的新鲜直链),存成官方原名
+          case "$PLAT" in
+            mac) KIND="🍎 全量安装 (Apple Silicon · dmg)";;
+            win) KIND="🪟 全量安装 (64-bit · exe)";;
+            *)   KIND="安装包";;
+          esac
+          dl "$API" "$FILE" "$KIND"
+
+          # macOS 增量热更包 tar.gz(有则附,404 自动跳过)
+          if [ -n "$UPDATER" ]; then
+            UURL="${UPDATER//\{V\}/$VER}"; UFILE="${UURL##*/}"
+            if curl -fsSI --http1.1 -m 30 "$UURL" >/dev/null 2>&1; then
+              dl "$UURL" "$UFILE" "🍎 增量热更 (updater · tar.gz)"
+            else
+              echo "  ⏭ 无增量 tar.gz(未发布),跳过"
+            fi
+          fi
+
+          if [ "$TOTAL" -eq 0 ] || [ "$FAIL" -ge "$TOTAL" ]; then
+            echo "  ❌ 无任何文件成功,跳过发布"; rm -rf "$DIR" "$NOTES"; exit 0
+          fi
+
+          ( cd "$DIR" && sha256sum -- * > ../ck.tmp && mv ../ck.tmp checksums.sha256 )
+          ASSETS+=("$DIR/checksums.sha256")
+          {
+            echo; echo "### SHA256 校验"; echo '```'; cat "$DIR/checksums.sha256"; echo '```'; echo
+            echo "---"
+            echo "> 🤖 自动镜像于 $(date -u '+%Y-%m-%d %H:%M UTC') · 源自网易 MuMu 官方公开下载入口"
+            echo "> ⚠️ 本仓库仅镜像官方**未修改**安装包,不含任何破解 / 授权绕过。"
+          } >> "$NOTES"
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TITLE" \
+            --notes-file "$NOTES" \
+            --latest=false \
+            "${ASSETS[@]}"
+          echo "  ✅ 已发布 $TAG(资产:${#ASSETS[@]} 个)"
+          rm -rf "$DIR" "$NOTES"
+
+  # set-latest:把 macOS 中国版(旗舰,版本最高)标为仓库 Latest
+  set-latest:
+    runs-on: ubuntu-latest
+    needs: mirror
+    if: always()
+    steps:
+      - name: 标记仓库 Latest
+        run: |
+          set -e
+          pick() { # $1 = tag 前缀,取该前缀下版本号最高的 tag
+            gh release list --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[].tagName' \
+              | grep -E "^$1-[0-9]" \
+              | sed -E "s/^$1-//" \
+              | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 \
+              | sed "s/^/$1-/"
+          }
+          BEST=$(pick mac-cn)
+          [ -z "$BEST" ] && BEST=$(pick mac-global)
+          [ -z "$BEST" ] && BEST=$(gh release list --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[0].tagName')
+          if [ -n "$BEST" ]; then
+            echo "标记 Latest: $BEST"
+            gh release edit "$BEST" --repo "$GITHUB_REPOSITORY" --latest
+          else
+            echo "⏭ 无 release,跳过"
+          fi
+
+  # keepalive:距上次提交 >50 天推空提交,防 schedule 因 60 天不活跃被禁用
+  keepalive:
+    runs-on: ubuntu-latest
+    needs: mirror
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Empty commit if near inactivity threshold
+        run: |
+          LAST=$(git log -1 --format=%ct); NOW=$(date +%s)
+          DAYS=$(( (NOW - LAST) / 86400 ))
+          echo "距上次提交 ${DAYS} 天"
+          if [ "$DAYS" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive — 防 schedule 60 天不活跃被禁用"
+            git push
+          else
+            echo "⏭ 无需 keepalive (< 50 天)"
+          fi
