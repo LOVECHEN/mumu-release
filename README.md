@@ -55,6 +55,10 @@ macOS(Apple Silicon · dmg + 增量 tar.gz)· Windows(64-bit · exe)· 中国版
 - 从该索引取**最新离线包直链 + 产品版本 `V6.x`**,走网易裸 CDN 直链下载,发布为 `win-cn-offline-V6.x`。
 - 索引拉取/解析失败则**跳过**,不影响其它任务。此为唯一的第三方依赖,页面改版时需同步维护。
 
+**`backfill-mac` 任务**(macOS 历史版本补全 · 每周日 / 手动 `backfill=yes`):
+- 遍历候选版本号,逐个 `HEAD` 探测 4 类直链(dmg / tar.gz × CN / Global),把网易 CDN 上**还活着的历史包**补成 `mac-<渠道>-<版本>`(标 pre-release)。
+- 网易对老版本保留**不规律**(有的只留 dmg、有的只留 tar.gz、有的全删),能补到哪算哪。已存在的 release 跳过。
+
 也可在 **Actions → Sync MuMu → Run workflow** 手动触发(可选只同步某一渠道)。
 
 ---
