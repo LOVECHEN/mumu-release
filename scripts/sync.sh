@@ -27,7 +27,11 @@ kind_of() {
     *nemux*overseas*.exe)             echo "🪟 完整离线安装包 国际版 · 安卓12 (nemux)";;
     *nxmain*overseas*.exe)            echo "🪟 完整离线安装包 国际版 · NX主引擎 (nxmain)";;
     *overseas*.exe)                   echo "🪟 完整离线安装包 国际版 (64-bit · exe)";;
-    MuMu-setup-*.exe|MuMuNG-setup-*.exe) echo "🪟 完整离线安装包 中国版 (64-bit · exe)";;
+    MuMu-setup-mumu15-*.exe)          echo "🪟 完整离线安装包 中国版 · 安卓15 (mumu15,默认)";;
+    MuMu-setup-nemux-*.exe)           echo "🪟 完整离线安装包 中国版 · 安卓12 (nemux)";;
+    MuMu-setup-nxmain-*.exe)          echo "🪟 完整离线安装包 中国版 · NX主引擎 (nxmain)";;
+    MuMu-setup-V*.exe|MuMuNG-setup-*.exe) echo "🪟 完整离线安装包 中国版 · 合体版 (64-bit · exe)";;
+    MuMu-setup-*.exe)                 echo "🪟 完整离线安装包 中国版 (64-bit · exe)";;
     *) echo "安装包";;
   esac
 }
@@ -219,11 +223,37 @@ do_win_global_offline() {
     "${specs[@]}"
 }
 
+# Windows 国内版完整离线安装包(三引擎,官方 nx 接口)。同 Global 但 usage=0/无 overseas。
+# ★注意:api.mumu.nie.netease.com 的 nx **需中国大陆出口 IP**——GitHub Azure runner(US)会 errcode 101
+#   「配置不存在」→ nx_discover 退 1、本函数跳过(CN 合体版仍由 win-full 社区索引覆盖,不受影响)。
+#   若把 runner 走中国代理(或用户本机中国 IP 跑),即可全自动拿到国内版每引擎离线包(往往比 Global 新)。
+do_win_cn_offline() {
+  local OUT VER="" URLS=() line
+  OUT=$(python3 "$(dirname "$0")/nx_discover.py" cn 2>/dev/null) || OUT=""
+  while IFS= read -r line; do
+    case "$line" in
+      VERSION=*)  VER="${line#VERSION=}";;
+      https://*)  URLS+=("$line");;
+    esac
+  done <<< "$OUT"
+  if [ "${#URLS[@]}" -eq 0 ]; then
+    echo "  ⏭ CN nx 未发现(多半 runner 非中国 IP 地理围栏),跳过 —— CN 合体版仍由 win-full 覆盖"
+    return 0
+  fi
+  local TAGVER; TAGVER=$(printf '%s' "$VER" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  echo "═══ win-cn-offline-$TAGVER(nx 发现 ${#URLS[@]} 引擎)═══"
+  local specs=() u; for u in "${URLS[@]}"; do specs+=("$u|"); done
+  ensure_release "win-cn-offline-$TAGVER" "Windows 国内版完整安装包 · MuMu模拟器12 (安卓15/12) $TAGVER" \
+    "🪟 Windows 国内版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。URL 由 api.mumu.nie.netease.com nx 接口自动发现(scripts/nx_discover.py,需中国出口 IP)。合体版见 win-*。" \
+    "${specs[@]}"
+}
+
 case "${1:-}" in
   mac-current)        do_mac_current;;
   mac-backfill)       do_mac_backfill;;
   win-installer)      do_win_installer;;
   win-full)           do_win_full;;
   win-global-offline) do_win_global_offline;;
-  *) echo "usage: sync.sh mac-current|win-installer|win-full|win-global-offline|mac-backfill" >&2; exit 2;;
+  win-cn-offline)     do_win_cn_offline;;
+  *) echo "usage: sync.sh mac-current|win-installer|win-full|win-global-offline|win-cn-offline|mac-backfill" >&2; exit 2;;
 esac

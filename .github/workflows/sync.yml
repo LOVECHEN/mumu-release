@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: '仅处理某项 (mac/win/installer/global-offline/all)'
+        description: '仅处理某项 (mac/win/installer/global-offline/cn-offline/all)'
         required: false
         default: 'all'
       backfill:
@@ -67,10 +67,21 @@ jobs:
           # 仓库 Secret,nx 请求签名密钥。未设置时 nx_discover.py 直接跳过,回退内置直链。
           MUMU_NX_SECRET: ${{ secrets.MUMU_NX_SECRET }}
 
+  # Windows 国内版完整离线安装包(三引擎,官方 nx 接口)。★需中国大陆出口 IP:GitHub Azure runner(US)
+  # 会 errcode 101 自动跳过(CN 合体版仍由 win-full 覆盖);走中国代理的 self-hosted runner 则可全自动。
+  win-cn-offline:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'cn-offline' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh win-cn-offline
+        env:
+          MUMU_NX_SECRET: ${{ secrets.MUMU_NX_SECRET }}
+
   # set-latest:把 macOS 最新版本(mac-<版本> 里版本号最高的)标为仓库 Latest
   set-latest:
     runs-on: ubuntu-latest
-    needs: [mac, win, win-installer, backfill-mac, win-global-offline]
+    needs: [mac, win, win-installer, backfill-mac, win-global-offline, win-cn-offline]
     if: always()
     steps:
       - name: 标记仓库 Latest
@@ -88,7 +99,7 @@ jobs:
   # keepalive:距上次提交 >50 天推空提交,防 schedule 因 60 天不活跃被禁用
   keepalive:
     runs-on: ubuntu-latest
-    needs: [mac, win, win-installer, backfill-mac, win-global-offline]
+    needs: [mac, win, win-installer, backfill-mac, win-global-offline, win-cn-offline]
     if: always()
     steps:
       - uses: actions/checkout@v4
