@@ -1,9 +1,11 @@
 name: Sync MuMu
 
-# 每日把 MuMu 官方安装包(macOS dmg + 增量 tar.gz / Windows exe · 中国版 + 国际版)
-# 镜像到 GitHub Releases。源地址均为网易官方公开下载入口(mumu.163.com / mumuplayer.com),
-# 每个渠道的稳定 api 端点每次重新签发直链;版本号从 302 重定向后的官方文件名解析。
-# 每个版本一个独立 Release(tag = <平台>-<渠道>-<版本>),历史累积不删。
+# 每日把 MuMu 官方安装包镜像到 GitHub Releases:
+#  - macOS dmg + 增量 tar.gz / Windows 在线安装器 exe · 中国版 + 国际版(mirror job,走官方 api 端点)
+#  - Windows 完整离线安装包 MuMu-setup-V*.exe ~830MB(offline-win job,走社区索引取直链)
+# 源地址均为网易官方公开下载(mumu.163.com / mumuplayer.com / a11.gdl.netease.com CDN)。
+# 每个版本一个独立 Release,历史累积不删。
+# ★注意 Windows 三个版本号:产品/模拟器版本 V6.x(离线包标题用)/ 在线安装器"下载器"版本 6.0.x / 离线包内部构建号 V5.30.x。
 
 on:
   schedule:
@@ -31,8 +33,8 @@ jobs:
           # key       plat  chan     product 标题                       api 端点(每次重签直链)                                              增量 updater 模板({V}=版本,404 自动跳过)
           - { key: mac-cn,     plat: mac, chan: cn,     title: 'MuMuPlayer Pro',        cn_title: 'macOS 中国版',   api: 'https://mumu.nie.netease.com/api/dl/mac?channel=gw-mac',            updater: 'https://a11.gdl.netease.com/MuMuUpdater_{V}_default.tar.gz' }
           - { key: mac-global, plat: mac, chan: global, title: 'MuMuPlayer Pro',        cn_title: 'macOS 国际版',   api: 'https://api.mumuplayer.com/api/dl/mac?channel=gw-mac-download',     updater: 'https://a11.gdl.netease.com/MuMuMacUpdater_{V}-global.tar.gz' }
-          - { key: win-cn,     plat: win, chan: cn,     title: 'MuMu 模拟器',           cn_title: 'Windows 中国版', api: 'https://mumu.nie.netease.com/api/dl/win?channel=gw-win',            updater: '' }
-          - { key: win-global, plat: win, chan: global, title: 'MuMu Player',           cn_title: 'Windows 国际版', api: 'https://api.mumuplayer.com/api/dl/win?channel=gw-win-download',     updater: '' }
+          - { key: win-cn,     plat: win, chan: cn,     title: 'MuMu模拟器12 在线安装器', cn_title: 'Windows 中国版', api: 'https://mumu.nie.netease.com/api/dl/win?channel=gw-win',            updater: '' }
+          - { key: win-global, plat: win, chan: global, title: 'MuMu Player 12 在线安装器', cn_title: 'Windows 国际版', api: 'https://api.mumuplayer.com/api/dl/win?channel=gw-win-download',     updater: '' }
     steps:
       - name: Filter channel
         id: filter
@@ -66,7 +68,8 @@ jobs:
           if [ -z "$VER" ]; then echo "❌ [$KEY] 无法从 '$FILE' 解析版本,跳过"; exit 0; fi
 
           TAG="$KEY-$VER"
-          TITLE="$CN_TITLE · $PRODUCT $VER"
+          # win 的 VER 是"下载器/在线安装器"自身版本(≠产品/模拟器版本 V6.x);mac 的 VER 即产品版本
+          if [ "$PLAT" = "win" ]; then TITLE="$CN_TITLE · $PRODUCT (下载器 v$VER)"; else TITLE="$CN_TITLE · $PRODUCT $VER"; fi
           echo "═══ $TAG ($FILE) ═══"
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -113,7 +116,7 @@ jobs:
           # 主安装包:裸 CDN 直链优先,退回 api 重签直链,存成官方原名
           case "$PLAT" in
             mac) KIND="🍎 全量安装 (Apple Silicon · dmg)";;
-            win) KIND="🪟 全量安装 (64-bit · exe)";;
+            win) KIND="🪟 在线安装器 (64-bit · exe · 运行后再拉完整包)";;
             *)   KIND="安装包";;
           esac
           dl "$FILE" "$KIND" "$BARE" "$API"
@@ -150,10 +153,71 @@ jobs:
           echo "  ✅ 已发布 $TAG(资产:${#ASSETS[@]} 个)"
           rm -rf "$DIR" "$NOTES"
 
+  # offline-win:Windows 完整离线安装包(MuMu-setup-V*.exe,~830MB)。
+  # 官方下载按钮只给在线安装器,离线完整包无干净官方端点;唯一跟踪其确切 CDN 直链的
+  # 是社区索引(悟透 cnblogs,newest-first)。从中取最新离线包 URL + 产品(模拟器)版本号,
+  # 裸 CDN 直链下载后发布为 win-cn-offline-<产品版本>。索引拉取/解析失败则跳过,不影响其它 job。
+  offline-win:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discover & mirror 完整离线安装包 (CN)
+        env:
+          INDEX: 'https://www.cnblogs.com/wutou/p/19476571'   # 悟透:MuMu Win x86-64 下载器/安装包历史版本
+        run: |
+          set -uo pipefail
+          HTML=$(curl -fsSL --http1.1 -m 40 -A 'Mozilla/5.0' "$INDEX" 2>/dev/null || true)
+          if [ -z "$HTML" ]; then echo "❌ 索引页拉取失败,跳过离线包"; exit 0; fi
+
+          # 最新离线安装包直链(页面 newest-first,取第一个 a11.gdl 的 MuMu-setup-V*.exe)
+          URL=$(printf '%s' "$HTML" | grep -oE 'https://a11\.gdl\.netease\.com/MuMu-setup-V[0-9.]+-[0-9]+\.exe' | head -1)
+          [ -z "$URL" ] && URL=$(printf '%s' "$HTML" | grep -oE 'MuMu-setup-V[0-9.]+-[0-9]+\.exe' | head -1 | sed 's#^#https://a11.gdl.netease.com/#')
+          if [ -z "$URL" ]; then echo "❌ 未从索引解析到 MuMu-setup,跳过"; exit 0; fi
+          FILE="${URL##*/}"
+          # 产品/模拟器版本(该行的 V6.x;页面第一个 V\d.\d.\d 即最新行的模拟器版本)
+          PVER=$(printf '%s' "$HTML" | grep -oE 'V[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          [ -z "$PVER" ] && PVER="V$(printf '%s' "$FILE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+
+          TAG="win-cn-offline-$PVER"
+          TITLE="Windows 中国版 · MuMu模拟器12 完整离线安装包 $PVER"
+          echo "═══ $TAG ($FILE) ═══"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "  ⏭ 已存在,跳过"; exit 0
+          fi
+          echo "  🆕 开始镜像离线包"
+
+          DIR="rel-$TAG"; mkdir -p "$DIR"
+          echo "  📥 $FILE 拉取中(~800MB)..."
+          if ! curl -fL --http1.1 --retry 5 --retry-delay 6 --retry-all-errors --retry-connrefused --connect-timeout 40 -o "$DIR/$FILE" "$URL" 2>/dev/null; then
+            echo "  ❌ 离线包下载失败,跳过"; rm -rf "$DIR"; exit 0
+          fi
+          SZ=$(stat -c%s "$DIR/$FILE"); MB=$((SZ/1048576)); echo "  ✅ $MB MB"
+          ( cd "$DIR" && sha256sum -- * > ../ck.tmp && mv ../ck.tmp checksums.sha256 )
+
+          NOTES="notes-$TAG.md"
+          {
+            echo "## $TITLE"; echo
+            echo "🔖 产品(模拟器)版本:\`$PVER\`　|　🧩 安装包内部版本:\`${FILE}\`"; echo
+            echo "### 下载文件"; echo
+            echo "| 类型 | 文件 | 大小 |"
+            echo "|------|------|------|"
+            printf '| %s | `%s` | %d MB |\n' "🪟 完整离线安装包 (64-bit · exe · 免联网直装)" "$FILE" "$MB"
+            echo; echo "### SHA256 校验"; echo '```'; cat "$DIR/checksums.sha256"; echo '```'; echo
+            echo "> 📌 这是 **MuMu模拟器12 $PVER 完整离线安装包**(在线安装器运行后要拉的完整包,这里直接给你)。"
+            echo "> ℹ️ 文件名的 \`V5.30.x\` 是安装包内部构建号,装出来即产品 **$PVER**。"
+            echo "---"
+            echo "> 🤖 自动镜像于 $(date -u '+%Y-%m-%d %H:%M UTC') · 直链源自网易 CDN(a11.gdl.netease.com),版本索引源自社区整理页。"
+            echo "> ⚠️ 仅镜像官方**未修改**安装包,不含任何破解 / 授权绕过。"
+          } > "$NOTES"
+
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" \
+            --notes-file "$NOTES" --latest=false "$DIR/$FILE" "$DIR/checksums.sha256"
+          echo "  ✅ 已发布 $TAG"
+          rm -rf "$DIR" "$NOTES"
+
   # set-latest:把 macOS 中国版(旗舰,版本最高)标为仓库 Latest
   set-latest:
     runs-on: ubuntu-latest
-    needs: mirror
+    needs: [mirror, offline-win]
     if: always()
     steps:
       - name: 标记仓库 Latest
@@ -179,7 +243,7 @@ jobs:
   # keepalive:距上次提交 >50 天推空提交,防 schedule 因 60 天不活跃被禁用
   keepalive:
     runs-on: ubuntu-latest
-    needs: mirror
+    needs: [mirror, offline-win]
     if: always()
     steps:
       - uses: actions/checkout@v4
