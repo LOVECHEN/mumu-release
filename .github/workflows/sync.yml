@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: '仅处理某项 (mac/win/installer/all)'
+        description: '仅处理某项 (mac/win/installer/global-offline/all)'
         required: false
         default: 'all'
       backfill:
@@ -54,6 +54,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/sync.sh mac-backfill
+
+  # Windows 国际版完整离线安装包(三引擎)。URL 来自 gated nx 接口, runner 无法自动发现,
+  # 故仅手动触发(only=global-offline);版本更新时改 scripts/sync.sh 里的三条直链。
+  win-global-offline:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'global-offline'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh win-global-offline
 
   # set-latest:把 macOS 最新版本(mac-<版本> 里版本号最高的)标为仓库 Latest
   set-latest:

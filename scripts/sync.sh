@@ -23,6 +23,9 @@ kind_of() {
     MuMuMacUpdater_*-global.tar.gz)   echo "🍎 增量热更 国际版 (updater · tar.gz)";;
     *gw-win_*.exe)                    echo "🪟 在线安装器 中国版 (64-bit · exe)";;
     *gw-win-download_*.exe|*gw-overseas12_*.exe) echo "🪟 在线安装器 国际版 (64-bit · exe)";;
+    *mumu15*overseas*.exe)            echo "🪟 完整离线安装包 国际版 · 安卓15 (mumu15,默认)";;
+    *nemux*overseas*.exe)             echo "🪟 完整离线安装包 国际版 · 安卓12 (nemux)";;
+    *nxmain*overseas*.exe)            echo "🪟 完整离线安装包 国际版 · NX主引擎 (nxmain)";;
     *overseas*.exe)                   echo "🪟 完整离线安装包 国际版 (64-bit · exe)";;
     MuMu-setup-*.exe|MuMuNG-setup-*.exe) echo "🪟 完整离线安装包 中国版 (64-bit · exe)";;
     *) echo "安装包";;
@@ -179,14 +182,28 @@ do_win_full() {
   [ -z "$PVER" ] && PVER="V$(verof "$URL")"
   echo "═══ win-$PVER(完整离线安装包)═══"
   ensure_release "win-$PVER" "Windows 完整安装包 · MuMu模拟器12 $PVER" \
-    "🪟 Windows 完整离线安装包(~830MB,免联网直装,即产品 $PVER)。文件名内部构建号 V5.30.x,装出来即 $PVER。国际版离线包暂无可靠源,补到即并入。" \
+    "🪟 Windows 完整离线安装包(~830MB,免联网直装,即产品 $PVER)。国际版见 win-global-offline-*。" \
     "$URL|"
 }
 
+# Windows 国际版完整离线安装包(三引擎:mumu15=安卓15/nemux=安卓12/nxmain)。
+# ★这些 URL 来自 api.mumuglobal.com/api/v2/download/nx —— 该接口要真机 WMI detectinfo 过门,
+#   GitHub runner 无法自动发现。逆向确认命名 = MuMu-setup-<引擎>-V<版本>-overseas-<时间戳>.exe。
+#   新版本时:在真 Windows 跑一次官方在线安装器,读 nemu-downloader 日志里的 nx 返回 link,更新下面三条。
+WGO_VER="6.8.0"   # nx data.version;更新版本时改这里 + 下面三条直链
+do_win_global_offline() {
+  ensure_release "win-global-offline-$WGO_VER" "Windows 国际版完整安装包 · MuMu Player 12 (安卓15/12) $WGO_VER" \
+    "🪟 Windows 国际版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。源自 api.mumuglobal.com nx 接口(需真机 WMI 过门,故手动跟版)。" \
+    "$CDN/MuMu-setup-mumu15-V15.8.0.5677-overseas-0923052014.exe|" \
+    "$CDN/MuMu-setup-nemux-V12.8.0.5676-overseas-0923051918.exe|" \
+    "$CDN/MuMu-setup-nxmain-V1.8.0.5675-overseas-0923051933.exe|"
+}
+
 case "${1:-}" in
-  mac-current)   do_mac_current;;
-  mac-backfill)  do_mac_backfill;;
-  win-installer) do_win_installer;;
-  win-full)      do_win_full;;
-  *) echo "usage: sync.sh mac-current|win-installer|win-full|mac-backfill" >&2; exit 2;;
+  mac-current)        do_mac_current;;
+  mac-backfill)       do_mac_backfill;;
+  win-installer)      do_win_installer;;
+  win-full)           do_win_full;;
+  win-global-offline) do_win_global_offline;;
+  *) echo "usage: sync.sh mac-current|win-installer|win-full|win-global-offline|mac-backfill" >&2; exit 2;;
 esac
