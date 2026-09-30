@@ -186,17 +186,37 @@ do_win_full() {
     "$URL|"
 }
 
-# Windows 国际版完整离线安装包(三引擎:mumu15=安卓15/nemux=安卓12/nxmain)。
-# ★这些 URL 来自 api.mumuglobal.com/api/v2/download/nx —— 该接口要真机 WMI detectinfo 过门,
-#   GitHub runner 无法自动发现。逆向确认命名 = MuMu-setup-<引擎>-V<版本>-overseas-<时间戳>.exe。
-#   新版本时:在真 Windows 跑一次官方在线安装器,读 nemu-downloader 日志里的 nx 返回 link,更新下面三条。
-WGO_VER="6.8.0"   # nx data.version;更新版本时改这里 + 下面三条直链
+# Windows 国际版完整离线安装包(三引擎:mumu15=安卓15/nemux=安卓12/nxmain=NX主)。
+# ★URL 全自动发现:scripts/nx_discover.py 复刻官方在线安装器对 api.mumuglobal.com/api/v2/download/nx
+#   的请求(逆向自 6.0.x 安装器 —— 表单编码 + HMAC-SHA256 签名 + 合成机器指纹,服务器不校验真实硬件),
+#   runner 直接拿到 data.components[].link(每引擎完整离线 setup exe)。nx 失败(网络/风控)时回退内置直链,
+#   保证 Release 不丢。命名 = MuMu-setup-<引擎>-V<版本>-overseas-<时间戳>.exe。
+WGO_FALLBACK_VER="6.8.0"
+WGO_FALLBACK=(
+  "$CDN/MuMu-setup-mumu15-V15.8.0.5677-overseas-0923052014.exe"
+  "$CDN/MuMu-setup-nemux-V12.8.0.5676-overseas-0923051918.exe"
+  "$CDN/MuMu-setup-nxmain-V1.8.0.5675-overseas-0923051933.exe"
+)
 do_win_global_offline() {
-  ensure_release "win-global-offline-$WGO_VER" "Windows 国际版完整安装包 · MuMu Player 12 (安卓15/12) $WGO_VER" \
-    "🪟 Windows 国际版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。源自 api.mumuglobal.com nx 接口(需真机 WMI 过门,故手动跟版)。" \
-    "$CDN/MuMu-setup-mumu15-V15.8.0.5677-overseas-0923052014.exe|" \
-    "$CDN/MuMu-setup-nemux-V12.8.0.5676-overseas-0923051918.exe|" \
-    "$CDN/MuMu-setup-nxmain-V1.8.0.5675-overseas-0923051933.exe|"
+  local OUT VER="" URLS=() line
+  OUT=$(python3 "$(dirname "$0")/nx_discover.py" 2>/dev/null) || OUT=""
+  while IFS= read -r line; do
+    case "$line" in
+      VERSION=*)  VER="${line#VERSION=}";;
+      https://*)  URLS+=("$line");;
+    esac
+  done <<< "$OUT"
+  if [ "${#URLS[@]}" -eq 0 ]; then
+    echo "  ⚠ nx 自动发现失败,回退内置直链(v$WGO_FALLBACK_VER)"
+    URLS=("${WGO_FALLBACK[@]}"); VER="$WGO_FALLBACK_VER"
+  fi
+  local TAGVER; TAGVER=$(printf '%s' "$VER" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  [ -z "$TAGVER" ] && TAGVER="$WGO_FALLBACK_VER"
+  echo "═══ win-global-offline-$TAGVER(nx 发现 ${#URLS[@]} 引擎)═══"
+  local specs=() u; for u in "${URLS[@]}"; do specs+=("$u|"); done
+  ensure_release "win-global-offline-$TAGVER" "Windows 国际版完整安装包 · MuMu Player 12 (安卓15/12) $TAGVER" \
+    "🪟 Windows 国际版完整离线安装包(免联网直装)· 三引擎:**mumu15(安卓15,默认)** / nemux(安卓12)/ nxmain(NX主)。URL 由 api.mumuglobal.com nx 接口自动发现(scripts/nx_discover.py)。" \
+    "${specs[@]}"
 }
 
 case "${1:-}" in

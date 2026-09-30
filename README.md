@@ -7,7 +7,8 @@ MuMu 模拟器 / MuMuPlayer Pro 官方安装包自动镜像 · Automated mirror 
 | tag 前缀 | 内容 | 平台 |
 |---|---|---|
 | `mac-<版本>` | MuMuPlayer Pro 全量 `dmg`(Apple Silicon)+ 增量 `tar.gz` | macOS |
-| `win-<产品版本>` | 完整离线安装包 `exe`(~830 MB,免联网双击直装) | Windows |
+| `win-<产品版本>` | 中国版完整离线安装包 `exe`(~830 MB,免联网双击直装) | Windows |
+| `win-global-offline-<版本>` | 国际版完整离线安装包 `exe`(三引擎:mumu15 安卓15 / nemux 安卓12 / nxmain) | Windows |
 | `win-installer-<版本>` | 官方在线安装器 `exe`(小巧下载器,运行后再联网拉完整包) | Windows |
 
 ## 下载
@@ -15,7 +16,8 @@ MuMu 模拟器 / MuMuPlayer Pro 官方安装包自动镜像 · Automated mirror 
 到 **[Releases](../../releases)** 按前缀找对应平台,或看 **[Latest](../../releases/latest)**(指向最新 macOS 版)。每个 Release 附 `checksums.sha256` 校验和。
 
 - **macOS**:`MuMuPlayer_<ver>_default.dmg`(中国版)/ `_global.dmg`(国际版)· `MuMuUpdater_<ver>_default.tar.gz`(增量热更)
-- **Windows 完整包**:`MuMu-setup-V<ver>-<build>.exe`(免联网直装)
+- **Windows 完整包(中国版)**:`MuMu-setup-V<ver>-<build>.exe`(免联网直装)
+- **Windows 完整包(国际版)**:`MuMu-setup-{mumu15,nemux,nxmain}-V<ver>-overseas-*.exe`(按引擎分:安卓15 / 安卓12 / NX 主)
 - **Windows 在线安装器**:`MuMu_<ver>_gw-win_*.exe`(中国版)/ `MuMu_<ver>_gw-overseas12_*.exe`(国际版)
 
 ## 说明
