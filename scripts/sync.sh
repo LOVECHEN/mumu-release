@@ -139,11 +139,25 @@ do_mac_backfill() {
   done; done
 }
 
+# 在多个渠道里挑版本号最高的直链(网易同一 host 不同渠道版本不一,官网按钮渠道未必最新)。
+# 跳过 apinochannel(无效渠道的回退占位)。echo 最高版本的裸 CDN 直链。
+best_win() { # host  channel...
+  local host="$1"; shift
+  local ch loc bare v
+  { for ch in "$@"; do
+      loc=$(redir "https://$host/api/dl/win?channel=$ch"); bare="${loc%%\?*}"
+      [ -z "$bare" ] && continue
+      case "$bare" in *apinochannel*) continue;; esac
+      v=$(verof "$bare"); [ -z "$v" ] && continue
+      printf '%s\t%s\n' "$v" "$bare"
+    done; } | sort -V | tail -1 | cut -f2
+}
+
 # win 在线安装器(小巧下载器)→ tag: win-installer-<下载器版本>
 do_win_installer() {
-  local LCN LGL BCN BGL VCN VGL
-  LCN=$(redir "https://mumu.nie.netease.com/api/dl/win?channel=gw-win");           BCN="${LCN%%\?*}"; VCN=$(verof "$BCN")
-  LGL=$(redir "https://api.mumuplayer.com/api/dl/win?channel=gw-win-download");     BGL="${LGL%%\?*}"; VGL=$(verof "$BGL")
+  local BCN BGL VCN VGL
+  BCN=$(best_win "mumu.nie.netease.com" gw-win gwwin);                        VCN=$(verof "$BCN")
+  BGL=$(best_win "api.mumuplayer.com"   gwwin gw-overseas12 gw-win-download); VGL=$(verof "$BGL")
   local INTRO="🪟 Windows 在线安装器(官方下载按钮给的小巧下载器,运行后再联网拉完整包)· 同版本中国版+国际版合并。要免联网直装请下【完整离线安装包】。"
   if [ -n "$VCN" ] && [ "$VCN" = "$VGL" ]; then
     echo "═══ win-installer-$VCN (CN+GL 同版本) ═══"
