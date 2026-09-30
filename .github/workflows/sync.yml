@@ -1,0 +1,123 @@
+name: Sync MuMu
+
+# 每日把 MuMu 官方安装包镜像到 GitHub Releases,按【版本】聚合:
+# 同一版本的中国版 + 国际版资产放同一个 Release(tag = mac-<版本> / win-<版本> / win-offline-<产品版本>)。
+# 核心逻辑在 scripts/sync.sh(幂等:CDN 上存在但 Release 里没有的资产会被补进去,已完整则跳过)。
+# 源均为网易官方公开下载(具体来源地址放仓库 Secret,不写进公开仓库)。
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 每天 06:00 UTC = 北京 14:00(当前版本)
+  workflow_dispatch:
+    inputs:
+      only:
+        description: '仅处理某项 (mac/win/installer/global-offline/cn-offline/all)'
+        required: false
+        default: 'all'
+      backfill:
+        description: '一次性:探测补全 macOS 历史版本 (yes/no,仅手动触发)'
+        required: false
+        default: 'no'
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  # 所有官方来源地址 + nx 签名密钥统一放仓库 Secret,不写进公开仓库(与 rhino/flstudio-release 同约定)。
+  MUMU_NX_SECRET:     ${{ secrets.MUMU_NX_SECRET }}
+  MUMU_CDN:           ${{ secrets.MUMU_CDN }}
+  MUMU_DL_MAC_CN:     ${{ secrets.MUMU_DL_MAC_CN }}
+  MUMU_DL_MAC_GL:     ${{ secrets.MUMU_DL_MAC_GL }}
+  MUMU_DL_WIN_CN:     ${{ secrets.MUMU_DL_WIN_CN }}
+  MUMU_DL_WIN_GL:     ${{ secrets.MUMU_DL_WIN_GL }}
+  MUMU_NX_HOST_GL:    ${{ secrets.MUMU_NX_HOST_GL }}
+  MUMU_NX_HOST_CN:    ${{ secrets.MUMU_NX_HOST_CN }}
+  MUMU_WINFULL_INDEX: ${{ secrets.MUMU_WINFULL_INDEX }}
+
+jobs:
+  mac:                     # macOS(dmg + 增量 tar.gz)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'mac' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh mac-current
+
+  win:                     # Windows 完整离线安装包(主下载)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'win' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh win-full
+
+  win-installer:           # Windows 在线安装器(小巧下载器)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'installer' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh win-installer
+
+  # 一次性:探测补全 macOS 历史版本(仅手动 backfill=yes),同版本 CN+Global 合并。
+  backfill-mac:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.backfill == 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh mac-backfill
+
+  # Windows 国际版完整离线安装包(三引擎)。URL 由 scripts/nx_discover.py 复刻官方 nx 接口
+  # 的 nx 接口自动发现(逆向表单签名 + 合成机器指纹,runner 直连即可),已可随每日 schedule 全自动跟版。
+  win-global-offline:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'global-offline' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh win-global-offline
+
+  # Windows 国内版完整离线安装包(三引擎,官方 nx 接口)。实测 GitHub Azure runner(US)可正常发现+下载,
+  # 无地理围栏(国内/国际唯一区别是 usage 参数);国内版往往比国际版新。
+  win-cn-offline:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.only == 'cn-offline' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/sync.sh win-cn-offline
+
+  # set-latest:把 macOS 最新版本(mac-<版本> 里版本号最高的)标为仓库 Latest
+  set-latest:
+    runs-on: ubuntu-latest
+    needs: [mac, win, win-installer, backfill-mac, win-global-offline, win-cn-offline]
+    if: always()
+    steps:
+      - name: 标记仓库 Latest
+        run: |
+          set -e
+          BEST=$(gh release list --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[].tagName' \
+            | grep -E '^mac-[0-9]' | sed -E 's/^mac-//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          if [ -n "$BEST" ]; then
+            echo "标记 Latest: mac-$BEST"
+            gh release edit "mac-$BEST" --repo "$GITHUB_REPOSITORY" --latest
+          else
+            echo "⏭ 无 mac release,跳过"
+          fi
+
+  # keepalive:距上次提交 >50 天推空提交,防 schedule 因 60 天不活跃被禁用
+  keepalive:
+    runs-on: ubuntu-latest
+    needs: [mac, win, win-installer, backfill-mac, win-global-offline, win-cn-offline]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Empty commit if near inactivity threshold
+        run: |
+          LAST=$(git log -1 --format=%ct); NOW=$(date +%s)
+          DAYS=$(( (NOW - LAST) / 86400 ))
+          echo "距上次提交 ${DAYS} 天"
+          if [ "$DAYS" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive"
+            git push
+          else
+            echo "⏭ 无需 keepalive (< 50 天)"
+          fi
