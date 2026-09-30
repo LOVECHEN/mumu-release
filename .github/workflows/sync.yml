@@ -10,7 +10,6 @@ name: Sync MuMu
 on:
   schedule:
     - cron: '0 6 * * *'   # 每天 06:00 UTC = 北京 14:00(当前版本)
-    - cron: '0 7 * * 0'   # 每周日 07:00 UTC:额外探测补全 macOS 历史版本
   workflow_dispatch:
     inputs:
       only:
@@ -18,7 +17,7 @@ on:
         required: false
         default: 'all'
       backfill:
-        description: '本次是否探测补全 macOS 历史版本 (yes/no)'
+        description: '一次性:探测补全 macOS 历史版本 (yes/no,仅手动触发时用)'
         required: false
         default: 'no'
 
@@ -219,13 +218,13 @@ jobs:
           echo "  ✅ 已发布 $TAG"
           rm -rf "$DIR" "$NOTES"
 
-  # backfill-mac:探测补全 macOS 历史版本(dmg + 增量 tar.gz · CN/Global)。
+  # backfill-mac:一次性探测补全 macOS 历史版本(dmg + 增量 tar.gz · CN/Global)。
   # 网易 CDN 对老版本保留不规律(有的只留 dmg、有的只留 tar.gz、有的全删),
   # 故遍历候选版本号,逐个 HEAD 探测 4 类 URL,把还活着的历史包补成 mac-<渠道>-<版本> release。
-  # 仅在「每周日 cron」或「手动 backfill=yes」时跑;已存在的 release 跳过,探测用 HEAD 很轻。
+  # ★仅手动触发(Run workflow → backfill=yes)才跑,不进日常 schedule;已存在的 release 跳过。
   backfill-mac:
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 7 * * 0' || github.event.inputs.backfill == 'yes'
+    if: github.event.inputs.backfill == 'yes'
     steps:
       - name: Probe & backfill 历史 macOS 版本
         run: |
@@ -257,13 +256,12 @@ jobs:
               fi
               echo "═══ 补全 $TAG (dmg=$HAS_DMG tgz=$HAS_TGZ) ═══"
 
-              DIR="rel-$TAG"; mkdir -p "$DIR"; ASSETS=(); ROWS=""
+              DIR="rel-$TAG"; mkdir -p "$DIR"; ASSETS=(); ROWSFILE="rows-$TAG.tmp"; : > "$ROWSFILE"
               get() { # url filename kind
                 local u="$1" f="$2" k="$3" sz mb
                 if curl -fL --http1.1 --retry 5 --retry-delay 6 --retry-all-errors --retry-connrefused --connect-timeout 40 -o "$DIR/$f" "$u" 2>/dev/null; then
                   sz=$(stat -c%s "$DIR/$f"); mb=$((sz/1048576)); ASSETS+=("$DIR/$f")
-                  ROWS="${ROWS}| $k | \`$f\` | ${mb} MB |
-"
+                  printf '| %s | `%s` | %d MB |\n' "$k" "$f" "$mb" >> "$ROWSFILE"
                   echo "  ✅ $f ($mb MB)"
                 else echo "  ❌ $f 下载失败"; rm -f "$DIR/$f"; fi
               }
@@ -279,7 +277,7 @@ jobs:
                 echo "🕰️ 历史版本补全 · 🧩 版本:\`$V\`"; echo
                 echo "### 下载文件"; echo
                 echo "| 类型 | 文件 | 大小 |"; echo "|------|------|------|"
-                printf '%s' "$ROWS"
+                cat "$ROWSFILE"
                 echo; echo "### SHA256 校验"; echo '```'; cat "$DIR/checksums.sha256"; echo '```'; echo
                 echo "---"
                 echo "> 🤖 历史版本探测补全于 $(date -u '+%Y-%m-%d %H:%M UTC') · 裸 CDN 直链(a11.gdl.netease.com)。"
@@ -289,7 +287,7 @@ jobs:
               gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$CNAME · MuMuPlayer Pro $V（历史）" \
                 --notes-file "$NOTES" --prerelease "${ASSETS[@]}"
               echo "  ✅ 已补全 $TAG"; NEW=$((NEW+1))
-              rm -rf "$DIR" "$NOTES"
+              rm -rf "$DIR" "$NOTES" "$ROWSFILE"
             done
           done
           echo "本次补全 $NEW 个历史 release"
