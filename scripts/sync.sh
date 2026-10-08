@@ -74,7 +74,7 @@ SPLIT_MAX=1992294400   # 1900 MiB
 # ensure_release TAG TITLE INTRO  spec...   spec = "url|kind(留空则推断)"
 # 幂等:把 CDN 上存在、但 Release 里还没有的资产补进去(合并 CN+Global),已完整则跳过。
 ensure_release() {
-  local TAG="$1" TITLE="$2"; shift 3
+  local TAG="$1" TITLE="$2" INTRO="$3"; shift 3
   local specs=("$@") s url name
   # 1. 过滤出 CDN 上真实存在的资产
   local W_URL=() W_NAME=()
@@ -133,6 +133,7 @@ ensure_release() {
   # 6. 用最终资产列表重建说明
   {
     echo "## $TITLE"; echo
+    [ -n "$INTRO" ] && { echo "$INTRO"; echo; }
     echo "### 下载文件"; echo
     echo "| 类型 | 文件 | 大小 |"; echo "|------|------|------|"
     gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[] | "\(.name)\t\(.size)"' \
@@ -152,6 +153,9 @@ ensure_release() {
         echo "- 合并后整包 SHA256(核对):\`$os\`"; echo
       done
     fi
+    echo "---"
+    echo "> 🤖 自动镜像于 $(date -u '+%Y-%m-%d %H:%M UTC') · 裸 CDN 直链(网易官方 CDN)。"
+    echo "> ⚠️ 仅镜像网易官方**未修改**安装包(原样镜像,未做任何改动)。同一版本的中国版 + 国际版合并在此。"
   } > "$DIR/notes.md"
   gh release edit "$TAG" --repo "$REPO" --notes-file "$DIR/notes.md" >/dev/null
   echo "  ✅ $TAG 就绪(新增 ${#NEW[@]} 个资产)"
