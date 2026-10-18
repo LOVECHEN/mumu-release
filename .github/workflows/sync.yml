@@ -7,7 +7,8 @@ name: Sync MuMu
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # 每天 06:00 UTC = 北京 14:00(当前版本)
+    # 每天 4 次:UTC+8 的 01:00 / 07:00 / 13:00 / 19:00。
+    - cron: '0 5,11,17,23 * * *'
   workflow_dispatch:
     inputs:
       only:
