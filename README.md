@@ -2,8 +2,6 @@
 
 MuMu 模拟器 / MuMuPlayer Pro 官方安装包自动镜像 · Automated mirror of official MuMu installers (macOS / Windows · 中国版 + 国际版).
 
-自动从**网易官方源**拉取**未经修改的官方原版**安装包,按版本归档到 GitHub Releases,每天检查一次,有新版自动发布。Releases 列表以**最新原始文件的官方 CDN `Last-Modified`**为第一排序键,源文件时间越新越靠前,手动补档时间不参与排序;只有时间完全相同时,才以**语义版本号倒序**作为第二排序键(例如 `1.8.17` 在 `1.8.5` 前,`1.6.15` 在 `1.6.13` 前)。已从 CDN 下线且无源时间记录的旧文件按语义版本插回同系列相邻版本之间。**同一版本的中国版 + 国际版合并在同一个 Release**(文件名自带 `default` / `global` 区分)。按 tag 前缀分三类:
-
 | tag 前缀 | 内容 | 平台 |
 |---|---|---|
 | `mac-<版本>` | MuMuPlayer Pro 完整 `dmg` + 完整 `tar.gz`(均 Apple Silicon,两种都能装) | macOS |
