@@ -3,7 +3,7 @@
 #   1. Release 内最新原始文件的 CDN Last-Modified(源文件时间),倒序;
 #   2. 上述时间完全相同时,按 tag 中的语义版本号倒序(sort -V)。
 # 手动补档的 GitHub 上传时间不参与排序。源文件日后被 CDN 删除时,优先复用 tag 标记中已保存的源时间;
-# 从未取到过源时间的条目统一沉到历史区底部,再按版本号排序。为保证 GitHub 排序键唯一,
+# 从未取到过源时间的旧条目插回同系列相邻版本之间,再按版本号排序。为保证 GitHub 排序键唯一,
 # 同秒条目会按上述次序依次减 1 秒。标记提交不进入 main,不改仓库文件,不重建 Release,
 # 也不会丢失附件或下载计数。
 set -euo pipefail
@@ -20,7 +20,7 @@ RELEASES=$(gh api --paginate "repos/$REPO/releases?per_page=100" \
     | [.tag_name, ([.assets[].name | select(. != "checksums.sha256")] | unique | join("|"))]
     | @tsv')
 
-DATA=""
+RAW_DATA=""
 while IFS=$'\t' read -r tag names; do
   [ -z "$tag" ] && continue
   version=$(printf '%s' "$tag" | grep -oE '[0-9]+(\.[0-9]+)+' | head -1 || true)
@@ -46,11 +46,33 @@ while IFS=$'\t' read -r tag names; do
     [ -n "$saved" ] && source_epoch="$saved"
   fi
 
-  DATA+="${source_epoch}"$'\t'"${version}"$'\t'"${tag}"$'\n'
+  RAW_DATA+="${source_epoch}"$'\t'"${version}"$'\t'"${tag}"$'\n'
 done <<< "$RELEASES"
 
+# 这 5 个早期文件已从 CDN 下线且没有历史源时间可恢复。将它们紧跟在同系列
+# 已知的上一版 mac-1.4.32 后,再按语义版本倒序插回,而不使用补档上传时间。
+legacy_anchor=$(printf '%s' "$RAW_DATA" \
+  | awk -F $'\t' '$3 == "mac-1.4.32" { print $1; exit }')
+legacy_anchor="${legacy_anchor:-946684800}"
+legacy_rank=0
+DATA=""
+while IFS=$'\t' read -r source_epoch version tag; do
+  [ -z "$tag" ] && continue
+  sort_epoch="$source_epoch"
+  if [ "$source_epoch" -eq 0 ]; then
+    case "$tag" in
+      mac-1.4.22|mac-1.4.18|mac-1.4.11|mac-1.4.10|mac-1.4.5)
+        legacy_rank=$((legacy_rank + 1))
+        sort_epoch=$((legacy_anchor - legacy_rank))
+        ;;
+      *) sort_epoch=946684800;;
+    esac
+  fi
+  DATA+="${sort_epoch}"$'\t'"${source_epoch}"$'\t'"${version}"$'\t'"${tag}"$'\n'
+done <<< "$(printf '%s' "$RAW_DATA" | sed '/^$/d' | sort -t $'\t' -k2,2Vr -k3,3r)"
+
 DATA=$(printf '%s' "$DATA" | sed '/^$/d' \
-  | sort -t $'\t' -k1,1nr -k2,2Vr -k3,3r)
+  | sort -t $'\t' -k1,1nr -k3,3Vr -k4,4r)
 
 [ -n "$DATA" ] || { echo "⏭ 无 release,跳过"; exit 0; }
 
@@ -59,10 +81,9 @@ previous_epoch=""
 newest_tag=""
 changed=0
 
-while IFS=$'\t' read -r source_epoch version tag; do
+while IFS=$'\t' read -r sort_epoch source_epoch version tag; do
   [ -z "$newest_tag" ] && newest_tag="$tag"
-  # 2000-01-01 仅是“源时间已不可取”的历史区排序基准,不冒充真实文件时间。
-  if [ "$source_epoch" -eq 0 ]; then marker_epoch=946684800; else marker_epoch="$source_epoch"; fi
+  marker_epoch="$sort_epoch"
   if [ -n "$previous_epoch" ] && [ "$marker_epoch" -ge "$previous_epoch" ]; then
     marker_epoch=$((previous_epoch - 1))
   fi
