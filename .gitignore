@@ -1,0 +1,9 @@
+# 安装包只进 Releases,绝不进 git 仓库
+*.dmg
+*.exe
+*.tar.gz
+*.zip
+checksums.sha256
+rel-*/
+notes-*.md
+.DS_Store
