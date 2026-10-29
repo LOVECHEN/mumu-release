@@ -1,0 +1,184 @@
+name: Sync MuMu
+
+# 每天 4 次把 MuMu 官方安装包镜像到 GitHub Releases,按【版本】聚合:
+# 同一版本的中国版 + 国际版资产放同一个 Release(tag = mac-<版本> / win-<版本>)。
+# 核心逻辑在 scripts/mumu_release.py(幂等:CDN 上存在但 Release 里没有的资产会被补进去,已完整则跳过)。
+# 源均为网易官方公开下载(具体来源地址放仓库 Secret,不写进公开仓库)。
+
+on:
+  schedule:
+    # 每天 4 次。基准时间为 UTC+8 的 01:00 / 07:00 / 13:00 / 19:00，
+    # jitter job 再随机延迟 0-30 分钟。
+    - cron: '0 5,11,17,23 * * *'
+  workflow_dispatch:
+    inputs:
+      only:
+        description: '仅处理某项 (mac/offline/all)'
+        required: false
+        default: 'all'
+      backfill:
+        description: '一次性:探测补全 macOS 历史版本 (yes/no,仅手动触发)'
+        required: false
+        default: 'no'
+      backfill_windows:
+        description: '一次性:补全 Windows x64 + ARM 历史版本 (yes/no,仅手动触发)'
+        required: false
+        default: 'no'
+      merge_from:
+        description: '可选:把这个旧 Release 的附件并入 merge_into'
+        required: false
+        default: ''
+      merge_into:
+        description: '可选:接收附件的目标 Release'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-mumu
+  cancel-in-progress: false
+
+jobs:
+  jitter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: 随机错峰 0-30 分钟
+        if: github.event_name == 'schedule'
+        run: python3 scripts/mumu_release.py jitter --max-seconds 1800
+
+  mac:                     # macOS(dmg + 增量 tar.gz)
+    runs-on: ubuntu-latest
+    needs: jitter
+    if: github.event.inputs.only == 'mac' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/mumu_release.py sync mac-current
+        env:
+          GH_TOKEN:       ${{ github.token }}
+          MUMU_CDN:       ${{ secrets.MUMU_CDN }}
+          MUMU_DL_MAC_CN: ${{ secrets.MUMU_DL_MAC_CN }}
+          MUMU_DL_MAC_GL: ${{ secrets.MUMU_DL_MAC_GL }}
+
+  # 一次性:探测补全 macOS 历史版本(仅手动 backfill=yes),同版本 CN+Global 合并。
+  backfill-mac:
+    runs-on: ubuntu-latest
+    needs: jitter
+    if: github.event.inputs.backfill == 'yes'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/mumu_release.py sync mac-backfill
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MUMU_CDN: ${{ secrets.MUMU_CDN }}
+
+  # 所有 Windows 文件按版本聚合:在线安装器 + 中国合体版 + 国内/国际三引擎。
+  win-offline:
+    runs-on: ubuntu-latest
+    needs: jitter
+    if: github.event.inputs.only == 'offline' || github.event.inputs.only == 'all' || github.event.inputs.only == '' || github.event_name == 'schedule'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: 同步并合并 Windows 完整包
+        run: python3 scripts/mumu_release.py sync windows
+        env:
+          GH_TOKEN:           ${{ github.token }}
+          MUMU_NX_SECRET:     ${{ secrets.MUMU_NX_SECRET }}
+          MUMU_CDN:           ${{ secrets.MUMU_CDN }}
+          MUMU_DL_WIN_CN:     ${{ secrets.MUMU_DL_WIN_CN }}
+          MUMU_DL_WIN_GL:     ${{ secrets.MUMU_DL_WIN_GL }}
+          MUMU_DL_WIN_ARM:    ${{ secrets.MUMU_DL_WIN_ARM }}
+          MUMU_NX_HOST_GL:    ${{ secrets.MUMU_NX_HOST_GL }}
+          MUMU_NX_HOST_CN:    ${{ secrets.MUMU_NX_HOST_CN }}
+          MUMU_WINFULL_INDEX: ${{ secrets.MUMU_WINFULL_INDEX }}
+
+  backfill-win-x64:
+    runs-on: ubuntu-latest
+    needs: jitter
+    if: github.event_name == 'workflow_dispatch' && inputs.backfill_windows == 'yes'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: 补全 Windows x64 历史版本
+        run: python3 scripts/mumu_release.py sync win-x64-backfill
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MUMU_CDN: ${{ secrets.MUMU_CDN }}
+
+  backfill-win-arm:
+    runs-on: ubuntu-latest
+    needs: jitter
+    if: github.event_name == 'workflow_dispatch' && inputs.backfill_windows == 'yes'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: 探测并补全 Windows ARM 历史版本
+        run: python3 scripts/mumu_release.py sync win-arm-backfill
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MUMU_CDN: ${{ secrets.MUMU_CDN }}
+
+  sort-after-win-backfill:
+    runs-on: ubuntu-latest
+    needs: [backfill-win-x64, backfill-win-arm]
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.backfill_windows == 'yes' && needs.backfill-win-x64.result == 'success' && needs.backfill-win-arm.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: 按 CDN Last-Modified 重排 Releases
+        run: python3 scripts/mumu_release.py sort-releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MUMU_CDN: ${{ secrets.MUMU_CDN }}
+
+  merge-release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.merge_from != '' && inputs.merge_into != ''
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: 在 GitHub runner 内合并 Release 附件
+        run: python3 scripts/mumu_release.py merge-release "$MERGE_FROM" "$MERGE_INTO"
+        env:
+          GH_TOKEN:   ${{ github.token }}
+          MERGE_FROM: ${{ inputs.merge_from }}
+          MERGE_INTO: ${{ inputs.merge_into }}
+
+  # keepalive:距上次提交 >50 天推空提交,防 schedule 因 60 天不活跃被禁用
+  keepalive:
+    runs-on: ubuntu-latest
+    needs: [mac, backfill-mac, win-offline]
+    if: always()
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Empty commit if near inactivity threshold
+        run: python3 scripts/mumu_release.py keepalive --days 50
+
+  cleanup-runs:
+    name: 清理旧 Actions 记录
+    runs-on: ubuntu-latest
+    needs: [jitter, mac, backfill-mac, win-offline, backfill-win-x64, backfill-win-arm, sort-after-win-backfill, merge-release, keepalive]
+    if: always()
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 只保留当前 Actions 运行
+        run: python3 scripts/mumu_release.py cleanup-runs
+        env:
+          GH_TOKEN: ${{ github.token }}
